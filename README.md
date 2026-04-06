@@ -6,8 +6,8 @@ This repository is the central documentation hub for the **Fargo Fire Department
 
 | File | Description |
 |---|---|
-| [`FFD_Display_System_Documentation.md`](./FFD_Display_System_Documentation.md) | Full technical reference (Markdown) |
-| [`FFD_Display_System_Documentation.docx`](./FFD_Display_System_Documentation.docx) | Same document in Word format for non-technical staff |
+| [`fire_station_display_documentation.md`](./fire_station_display_documentation.md) | Full technical reference (Markdown) |
+| [`fire_station_display_documentation.docx`](./fire_station_display_documentation.docx) | Same document in Word format for non-technical staff |
 
 The documentation covers system architecture, all five Worker projects, account and access management, deployment workflows, IT support reference, and planned enhancements.
 
