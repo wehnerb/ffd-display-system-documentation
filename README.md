@@ -1,4 +1,4 @@
-# FFD Display Board — System Documentation
+# FFD Display Board System Documentation
 
 This repository is the central documentation hub for the **Fargo Fire Department Station Display Board** system — a set of Cloudflare Workers that power digital display screens throughout the fire station.
 
