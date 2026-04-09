@@ -9,7 +9,7 @@ This repository is the central documentation hub for the **Fargo Fire Department
 | [`fire_station_display_documentation.md`](./fire_station_display_documentation.md) | Full technical reference (Markdown) |
 | [`fire_station_display_documentation.docx`](./fire_station_display_documentation.docx) | Same document in Word format for non-technical staff |
 
-The documentation covers system architecture, all five Worker projects, account and access management, deployment workflows, IT support reference, and planned enhancements.
+The documentation covers system architecture, all six Worker projects, account and access management, deployment workflows, IT support reference, and planned enhancements.
 
 ## 🗂️ Code Repositories
 
@@ -20,9 +20,10 @@ The documentation covers system architecture, all five Worker projects, account 
 | River Level Display | Canvas-based NOAA hydrograph for Red River gauges | [river-level-display](https://github.com/wehnerb/river-level-display) |
 | Daily Message Display | Rotating safety messages and images from Google Sheets/Drive | [daily-message-display](https://github.com/wehnerb/daily-message-display) |
 | Calendar Display | FFD Calendar rendered as HTML from ICS via Nextcloud | [calendar-display](https://github.com/wehnerb/calendar-display) |
+| Probationary Firefighter Display | Rotating new hire spotlight with bio and photo from Google Sheets/Drive | [probationary-firefighter-display](https://github.com/wehnerb/probationary-firefighter-display) |
 
 ## 👤 Maintained By
 
 Brandon Wehner — Fargo Fire Department
 
-For questions about this system, see **Section 9.5** of the documentation.
+For questions about this system, see **Section 10.5** of the documentation.
