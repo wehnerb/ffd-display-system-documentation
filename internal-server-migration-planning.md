@@ -27,6 +27,16 @@
 - The First Due display (see below) will be built as a net-new internal project first, before any existing workers are migrated — this gives the team a chance to establish the internal build/deploy workflow before touching production workers
 - Calendar data export process is being streamlined first and is not blocked by this migration
 
+### Caching
+- Caching was a requirement on Cloudflare due to CPU time limits and free-tier request constraints
+- On the internal server, those constraints do not apply — all workers should serve fresh data on every request
+- Remove all caching logic from every worker during migration; do not carry it forward
+
+### Run on Demand vs. Always-On
+- IT mentioned a "run on demand" model in the context of the calendar data export process — this may apply to scheduled or triggered scripts, not display workers
+- Display workers must be always-on persistent HTTP listeners since display hardware can request the URL at any time with no predictable schedule
+- Confirm with IT whether "run on demand" was specific to the calendar export or whether it applies to any other workers, and ensure display workers are set up as persistent processes, not scheduled scripts
+
 ### General Dependency Reduction Goals
 - Eliminate all Google APIs (Sheets, Drive, Slides) — move all data files and folders to internal server storage
 - Eliminate `images.weserv.nl` — no longer used and should not be reintroduced; image resizing handled via HTML/CSS
