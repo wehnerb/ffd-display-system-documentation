@@ -197,7 +197,7 @@ Image freshness is handled entirely by the display hardware. Source image URLs f
 | GitHub Repository | github.com/wehnerb/station-image-proxy                   |
 | Production URL    | https://station-image-proxy.bwehner.workers.dev/         |
 | Staging URL       | https://station-image-proxy-staging.bwehner.workers.dev/ |
-| Worker File       | worker_code.js                                           |
+| Worker File       | index.js                                           |
 | Secrets Required  | CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID              |
 
 ## 3.3 How It Works
