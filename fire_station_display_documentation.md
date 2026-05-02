@@ -197,7 +197,7 @@ Image freshness is handled entirely by the display hardware. Source image URLs f
 | GitHub Repository | github.com/wehnerb/station-image-proxy                   |
 | Production URL    | https://station-image-proxy.bwehner.workers.dev/         |
 | Staging URL       | https://station-image-proxy-staging.bwehner.workers.dev/ |
-| Worker File       | index.js                                           |
+| Worker File       | src/index.js                                           |
 | Secrets Required  | CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID              |
 
 ## 3.3 How It Works
@@ -249,7 +249,7 @@ All images are defined in the MAPPING object near the top of worker_code.js. To 
 
 1.  Open the staging branch of the station-image-proxy repository in GitHub.
 
-2.  Edit index.js and locate the MAPPING object.
+2.  Edit src/index.js and locate the MAPPING object.
 
 3.  Add a new line inside the MAPPING object following the existing format:
 
