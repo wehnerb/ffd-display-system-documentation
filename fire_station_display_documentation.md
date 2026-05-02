@@ -605,7 +605,7 @@ The Probationary Firefighter Display Worker automates the introduction of new hi
 
 ## 8.3 URL Parameters
 
-The ?layout= parameter controls which design is rendered. Default is wide. The full layout adds a "PROBATIONARY FIREFIGHTERS" title bar at the top.
+The ?layout= parameter controls which design is rendered. Default is wide. The full layout adds a "PROBATIONARY FIREFIGHTER SPOTLIGHT" title bar at the top.
 
 ## 8.4 How It Works
 
