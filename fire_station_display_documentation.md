@@ -2,7 +2,7 @@
 
 *Technical Reference Guide for Department Staff, Administrators, and IT Support*
 
-Last Updated: April 9, 2026
+Last Updated: May 2, 2026
 
 Maintained by: Brandon Wehner
 
@@ -24,15 +24,18 @@ Maintained by: Brandon Wehner
 - [6. Project: Daily Message Display](#6-project-daily-message-display)
 - [7. Project: Calendar Display](#7-project-calendar-display)
 - [8. Project: Probationary Firefighter Display](#8-project-probationary-firefighter-display)
-- [9. Deployment & Maintenance Workflow](#9-deployment--maintenance-workflow)
-- [10. IT Support Reference](#10-it-support-reference)
-- [11. Planned Enhancements](#11-planned-enhancements)
+- [9. Project: Department News Display](#9-project-department-news-display)
+- [10. Project: Weather Display](#10-project-weather-display)
+- [11. Shared Utilities](#11-shared-utilities)
+- [12. Deployment & Maintenance Workflow](#12-deployment--maintenance-workflow)
+- [13. IT Support Reference](#13-it-support-reference)
+- [14. Planned Enhancements](#14-planned-enhancements)
 
 # 1. System Overview
 
 ## 1.1 Purpose
 
-The Fire Station Display Board system is a set of digital display screens deployed throughout the fire station that provide firefighters with real-time and regularly updated operational information. Content displayed includes traffic camera feeds, river gauge levels and hydrographs, Google Slides presentations with department announcements, rotating safety messages, a station calendar, a probationary firefighter spotlight, and other data relevant to daily operations.
+The Fire Station Display Board system is a set of digital display screens deployed throughout the fire station that provide firefighters with real-time and regularly updated operational information. Content displayed includes traffic camera feeds, river gauge levels and hydrographs, Google Slides presentations with department announcements, rotating safety messages, a station calendar with weather data, a probationary firefighter spotlight, department and station-specific news, and a full weather display with animated radar.
 
 The system was designed with two core constraints in mind:
 
@@ -57,34 +60,47 @@ Each Worker is deployed independently and has its own URL. A display screen is c
 
 ## 1.3 Technology Stack
 
-| **Technology**     | **Purpose**                                           | **Cost**                    |
-|--------------------|-------------------------------------------------------|-----------------------------|
-| Cloudflare Workers | Serverless edge functions that process requests       | Free tier (100,000 req/day) |
-| GitHub             | Source code storage and version control               | Free                        |
-| GitHub Actions     | Automatic deployment pipeline to Cloudflare           | Free                        |
-| NOAA NWPS API      | River gauge data (stage, flood thresholds, forecasts) | Free / Public               |
-| ND DOT / USGS      | Traffic camera and river camera image sources         | Free / Public               |
+| **Technology**          | **Purpose**                                                    | **Cost**                    |
+|-------------------------|----------------------------------------------------------------|-----------------------------|
+| Cloudflare Workers      | Serverless edge functions that process requests                | Free tier (100,000 req/day) |
+| GitHub                  | Source code storage and version control                        | Free                        |
+| GitHub Actions          | Automatic deployment pipeline to Cloudflare                    | Free                        |
+| Google Sheets API       | Content storage for daily messages, news, and firefighter bios | Free (service account auth) |
+| Google Drive API        | Image storage for daily messages and firefighter photos        | Free (service account auth) |
+| Google Slides API       | Slide count queries for the slide timing proxy                 | Free (service account auth) |
+| Nextcloud WebDAV        | ICS calendar file delivery from Nextcloud to Worker            | Free (city infrastructure)  |
+| NWS Public API          | Weather conditions, forecast, and alerts (no API key required) | Free / Public               |
+| AirNow API              | Air Quality Index data for the weather display                 | Free (API key required)     |
+| RainViewer API          | Animated radar tile data for the weather display               | Free / Public               |
+| NOAA NWPS API           | River gauge data (stage, flood thresholds, forecasts)          | Free / Public               |
+| ND DOT / USGS           | Traffic camera and river camera image sources                  | Free / Public               |
+| UptimeRobot             | Uptime monitoring for all 8 Workers with email alerts          | Free tier                   |
 
 # 2. Account & Access Guide
 
 ## 2.1 Accounts and Where to Find Them
 
-| **Account**  | **URL / Login**                                | **What It Controls**                                     |
-|--------------|------------------------------------------------|----------------------------------------------------------|
-| Cloudflare   | dash.cloudflare.com – bwehner                  | Worker deployment, subdomain (bwehner), secrets storage  |
-| GitHub       | github.com/wehnerb                             | All source code repositories and deployment workflows    |
-| Google Cloud | console.cloud.google.com — bwehner@fargond.gov | Google Slides API access and service account credentials |
+| **Account**   | **URL / Login**                                | **What It Controls**                                                    |
+|---------------|------------------------------------------------|-------------------------------------------------------------------------|
+| Cloudflare    | dash.cloudflare.com – bwehner                  | Worker deployment, subdomain (bwehner), secrets storage                 |
+| GitHub        | github.com/wehnerb                             | All source code repositories and deployment workflows                   |
+| Google Cloud  | console.cloud.google.com — bwehner@fargond.gov | Google Slides, Sheets, and Drive API access and service account credentials |
+| AirNow        | docs.airnowapi.org — bwehner@fargond.gov       | AirNow API key for weather display AQI data                             |
+| UptimeRobot   | uptimerobot.com — bwehner@fargond.gov          | Uptime monitoring for all 8 Workers, email alerts on downtime           |
 
 ## 2.2 GitHub Repositories
 
-| **Repository**                      | **Worker URL**                                        | **Purpose**                                               |
-|-------------------------------------|-------------------------------------------------------|-----------------------------------------------------------|
-| station-image-proxy                 | station-image-proxy.bwehner.workers.dev               | Image resizing and caching proxy for traffic camera feeds |
-| slide-timing-proxy                  | slide-timing-proxy.bwehner.workers.dev                | Dynamic Google Slides per-slide timing                    |
-| river-level-display                 | river-level-display.bwehner.workers.dev               | River gauge hydrograph display (NOAA NWPS data)           |
-| daily-message-display               | daily-message-display.bwehner.workers.dev             | Daily safety message and image display                    |
-| calendar-display                    | calendar-display.bwehner.workers.dev                  | Station calendar display from exported ICS file           |
-| probationary-firefighter-display    | probationary-firefighter-display.bwehner.workers.dev  | Rotating probationary firefighter spotlight display       |
+| **Repository**                      | **Worker URL**                                        | **Purpose**                                                   |
+|-------------------------------------|-------------------------------------------------------|---------------------------------------------------------------|
+| station-image-proxy                 | station-image-proxy.bwehner.workers.dev               | Image resizing proxy for traffic camera and river feeds       |
+| slide-timing-proxy                  | slide-timing-proxy.bwehner.workers.dev                | Dynamic Google Slides per-slide timing                        |
+| river-level-display                 | river-level-display.bwehner.workers.dev               | River gauge hydrograph display (NOAA NWPS data)               |
+| daily-message-display               | daily-message-display.bwehner.workers.dev             | Daily safety message and image display                        |
+| calendar-display                    | calendar-display.bwehner.workers.dev                  | Station calendar display from exported ICS file with weather  |
+| probationary-firefighter-display    | probationary-firefighter-display.bwehner.workers.dev  | Rotating probationary firefighter spotlight display           |
+| department-news-display             | department-news-display.bwehner.workers.dev           | Department-wide and station-specific news card display        |
+| weather-display                     | weather-display.bwehner.workers.dev                   | Full weather display with radar, conditions, and alerts       |
+| ffd-station-display-utils           | (shared library — no Worker URL)                      | Shared design tokens, helpers, and utilities for all Workers  |
 
 ## 2.3 GitHub Secrets Reference
 
@@ -94,28 +110,27 @@ Each GitHub repository stores secrets that are injected into the Cloudflare Work
 |------------------------------|-----------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | CLOUDFLARE_API_TOKEN         | All                                     | Cloudflare API token with Workers edit permissions                                                                                                                                                            |
 | CLOUDFLARE_ACCOUNT_ID        | All                                     | Cloudflare account ID (found on any zone page in dashboard)                                                                                                                                                   |
-| GOOGLE_SERVICE_ACCOUNT_EMAIL | slide-timing-proxy only                 | Service account email from Google Cloud JSON key file                                                                                                                                                         |
-| GOOGLE_PRIVATE_KEY           | slide-timing-proxy only                 | Private key from Google Cloud JSON key file (include \n characters)                                                                                                                                           |
-| GOOGLE_SHEET_ID              | daily-message-display only              | The ID of the Google Sheet containing daily messages. Found in the Sheet URL between /d/ and /edit.                                                                                                           |
-| GOOGLE_DRIVE_FOLDER_ID       | daily-message-display only              | The ID of the Google Drive folder containing daily message images for daily-message-display. Found in the folder URL after /folders/.                                                                         |
-| PRESENTATION_ID              | slide-timing-proxy only                 | Google Slides presentation ID — the alphanumeric string between /d/ and /edit in the presentation URL. Stored as a Worker secret, not hardcoded in source.                                                    |
-| PUBLISHED_ID                 | slide-timing-proxy only                 | Google Slides published embed ID — the long string between /d/e/ and /pubembed in the File → Share → Publish to web embed URL. Stored as a Worker secret, not hardcoded in source.                            |
+| GOOGLE_SERVICE_ACCOUNT_EMAIL | slide-timing-proxy only (GitHub)        | Service account email from Google Cloud JSON key file. Also required for daily-message-display, probationary-firefighter-display, department-news-display — set in Cloudflare dashboard for those workers.    |
+| GOOGLE_PRIVATE_KEY           | slide-timing-proxy only (GitHub)        | Private key from Google Cloud JSON key file (include \n characters). Also required for daily-message-display, probationary-firefighter-display, department-news-display — set in Cloudflare dashboard.         |
+| GOOGLE_SHEET_ID              | daily-message-display, department-news-display, probationary-firefighter-display | The ID of the relevant Google Sheet. Found in the Sheet URL between /d/ and /edit. Set in Cloudflare dashboard for these workers. |
+| GOOGLE_DRIVE_FOLDER_ID       | daily-message-display, probationary-firefighter-display | The ID of the Google Drive folder containing images. Found in the folder URL after /folders/. Set in Cloudflare dashboard. |
+| PRESENTATION_ID              | slide-timing-proxy only                 | Google Slides presentation ID — the alphanumeric string between /d/ and /edit in the presentation URL.                                                                                                        |
+| PUBLISHED_ID                 | slide-timing-proxy only                 | Google Slides published embed ID — the long string between /d/e/ and /pubembed in the File → Share → Publish to web embed URL.                                                                                |
 | NEXTCLOUD_URL                | calendar-display only                   | Full WebDAV URL to the ICS file on Nextcloud. Format: https://fileshare.fargond.gov/remote.php/dav/files/USERNAME/FFD%20Calendar%20Export/FFD%20Calendar%20Calendar.ics                                       |
 | NEXTCLOUD_USERNAME           | calendar-display only                   | Nextcloud login username (shown when creating an app password — not the display name).                                                                                                                        |
-| NEXTCLOUD_PASSWORD           | calendar-display only                   | Nextcloud app password. Generate at: Nextcloud → Settings → Security → Devices & sessions → Create new app password. Use an app password rather than the account password so it can be revoked independently. |
-| GOOGLE_SHEET_ID              | probationary-firefighter-display only   | The ID of the Google Sheet "Fire Station Display – Probationary Firefighter Information". Found in the Sheet URL between /d/ and /edit. Set in Cloudflare dashboard, not GitHub Actions.                      |
-| GOOGLE_DRIVE_FOLDER_ID       | probationary-firefighter-display only   | The ID of the Google Drive folder "Fire Station Display – Probationary Firefighter Images". Found in the folder URL after /folders/. Set in Cloudflare dashboard, not GitHub Actions.                         |
+| NEXTCLOUD_PASSWORD           | calendar-display only                   | Nextcloud app password. Generate at: Nextcloud → Settings → Security → Devices & sessions → Create new app password.                                                                                          |
+| AIRNOW_API_KEY               | weather-display only                    | AirNow API key for AQI data. Set in Cloudflare dashboard (not GitHub Actions). Register at docs.airnowapi.org. Free tier is sufficient.                                                                       |
 
 | **Where to Find These Secret Values**                                                                                                                                                                                                                                                                                                                                                                                                                              |
 |--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | CLOUDFLARE_API_TOKEN: Log in to dash.cloudflare.com, go to My Profile → API Tokens → Create Token. Use the "Edit Cloudflare Workers" template. Copy the generated token — it is only shown once.                                                                                                                                                                                                                                                                   |
 | CLOUDFLARE_ACCOUNT_ID: Log in to dash.cloudflare.com and go to Workers & Pages → Overview. The Account ID is displayed in the right sidebar.                                                                                                                                                                                                                                                                                                                       |
-| GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY: Log in to console.cloud.google.com and open the slide-timing project. Go to IAM & Admin → Service Accounts → slide-timing-worker → Keys → Add Key → Create new key (JSON). Download the JSON file. The client_email field is your GOOGLE_SERVICE_ACCOUNT_EMAIL and the private_key field is your GOOGLE_PRIVATE_KEY. Store the JSON file securely and delete it after copying the values into GitHub Secrets. |
-| Note: river-level-display does not require any Google credentials — the NOAA NWPS API is fully public. daily-message-display and probationary-firefighter-display both use the same service account as slide-timing-proxy — no additional Google credentials are needed beyond CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN. For probationary-firefighter-display, GOOGLE_SHEET_ID and GOOGLE_DRIVE_FOLDER_ID must be set directly in the Cloudflare Workers dashboard (not through GitHub Actions). calendar-display uses Nextcloud WebDAV and does not require any Google credentials. |
+| GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY: Log in to console.cloud.google.com and open the slide-timing project. Go to IAM & Admin → Service Accounts → slide-timing-worker → Keys → Add Key → Create new key (JSON). Download the JSON file. The client_email field is your GOOGLE_SERVICE_ACCOUNT_EMAIL and the private_key field is your GOOGLE_PRIVATE_KEY. Store the JSON file securely and delete it after copying the values into the Cloudflare dashboard. |
+| Note: river-level-display does not require any Google credentials. daily-message-display, probationary-firefighter-display, and department-news-display all use the same service account as slide-timing-proxy — set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY in the Cloudflare dashboard (Workers & Pages → [Worker Name] → Settings → Variables and Secrets) for each of those three workers. calendar-display uses Nextcloud WebDAV and does not require Google credentials. weather-display requires AIRNOW_API_KEY set in the Cloudflare dashboard. |
 
 | **Important — Cloudflare Worker Secrets**                                                                                                                                                                                                                                                      |
 |------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| After the first deployment of a new Worker environment (e.g. staging), the secrets must also be verified in the Cloudflare dashboard under Workers & Pages → \[Worker Name\] → Settings → Variables and Secrets. If secrets are missing, they can be added manually there without redeploying. |
+| After the first deployment of a new Worker environment (e.g. staging), the secrets must also be set in the Cloudflare dashboard under Workers & Pages → \[Worker Name\] → Settings → Variables and Secrets. GitHub Actions deploys the code but does not set secrets — they must be configured in the Cloudflare dashboard manually. |
 
 ## 2.4 Transferring Ownership to a New Administrator
 
@@ -137,6 +152,7 @@ If a new person takes over maintenance of this system, the following steps must 
 
 3.  Create a new API token for the new administrator using the Edit Cloudflare Workers template and provide it to them for their GitHub secrets.
 
+4.  In the Cloudflare dashboard, set the following secrets for each Worker that requires them (under Workers & Pages → [Worker Name] → Settings → Variables and Secrets): GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY for daily-message-display, probationary-firefighter-display, and department-news-display; GOOGLE_SHEET_ID and GOOGLE_DRIVE_FOLDER_ID for daily-message-display and probationary-firefighter-display; GOOGLE_SHEET_ID for department-news-display; AIRNOW_API_KEY for weather-display; NEXTCLOUD_URL, NEXTCLOUD_USERNAME, NEXTCLOUD_PASSWORD for calendar-display.
 
 ### Step 3 — Google Cloud
 
@@ -146,9 +162,23 @@ If a new person takes over maintenance of this system, the following steps must 
 
 3.  The new administrator should create a new service account key (IAM & Admin → Service Accounts → slide-timing-worker → Keys → Add Key). The old key should then be deleted.
 
-4.  Update GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY in GitHub Secrets with the new values.
+4.  Update GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY in the Cloudflare dashboard for all workers that require those secrets.
 
-*Note: river-level-display has no Google Cloud dependency. daily-message-display and probationary-firefighter-display both reuse the existing slide-timing-proxy service account — no additional Google Cloud steps are needed for those Workers during a transfer. The new administrator must share the daily-message-display Google Sheet and Drive folder, and the probationary-firefighter-display Google Sheet and Drive folder, with the service account email after completing Step 3. calendar-display uses Nextcloud WebDAV and has no Google Cloud dependency — the new administrator only needs to update the NEXTCLOUD_URL, NEXTCLOUD_USERNAME, and NEXTCLOUD_PASSWORD secrets in Cloudflare and GitHub.*
+### Step 4 — AirNow
+
+1. Go to docs.airnowapi.org and register for a new API key using the new administrator's email.
+
+2. Update AIRNOW_API_KEY in the Cloudflare dashboard for weather-display and weather-display-staging.
+
+### Step 5 — UptimeRobot
+
+1. Go to uptimerobot.com and create a new account for the new administrator.
+
+2. Recreate all 8 monitors (see Section 13.4) under the new account.
+
+3. Set the alert contact to the new administrator's department email.
+
+*Note: river-level-display has no Google Cloud dependency. calendar-display uses Nextcloud WebDAV and has no Google Cloud dependency — the new administrator only needs to update the NEXTCLOUD_URL, NEXTCLOUD_USERNAME, and NEXTCLOUD_PASSWORD secrets in the Cloudflare dashboard.*
 
 # 3. Project: Image Resizing Proxy
 
@@ -156,7 +186,7 @@ If a new person takes over maintenance of this system, the following steps must 
 
 The station display system cannot resize images natively. Without intervention, images either fail to fill a display column entirely or overflow beyond its boundaries.
 
-The Image Proxy Worker solves this by returning a self-contained HTML page rather than a raw image. Each page contains the source image URL and CSS that scales the image to fit the display column using object-fit: contain — the same scaling behavior previously handled by the external images.weserv.nl service. Because the browser on the display hardware handles all scaling locally, no external image processing service is required. This eliminates a potential failure point and simplifies the architecture.
+The Image Proxy Worker solves this by returning a self-contained HTML page rather than a raw image. Each page contains the source image URL and CSS that scales the image to fit the display column using object-fit: contain. Because the browser on the display hardware handles all scaling locally, no external image processing service is required.
 
 Image freshness is handled entirely by the display hardware. Source image URLs for ND DOT cameras, USGS, and NOAA are designed to always return the latest image when loaded without additional query parameters. The display browser requests a fresh copy of each source image each time the page is rendered.
 
@@ -197,15 +227,15 @@ Cache-Control: no-store is set on all HTML responses so the display browser alwa
 
 ## 3.6 Example URLs
 
-Single camera image in a two-column layout, refreshing every 5 minutes (all defaults):
+Single camera image in a two-column layout:
 
 `https://station-image-proxy.bwehner.workers.dev/?img=i29MainAve-north`
 
-Two stacked camera images in a two-column layout, refreshing every 20 minutes:
+Two stacked camera images in a two-column layout:
 
 `https://station-image-proxy.bwehner.workers.dev/?img=i29MainAve-north+i29MainAve-south&layout=split`
 
-River level gauge in a single-column layout, refreshing every hour:
+River level gauge in a single-column layout:
 
 `https://station-image-proxy.bwehner.workers.dev/?img=riverlevel-redriver&layout=wide`
 
@@ -238,7 +268,6 @@ The following images are currently configured in the MAPPING object. See Section
 | **Key Name**        | **Readable Name**            | **Source URL**                                            |
 |---------------------|------------------------------|-----------------------------------------------------------|
 | riverlevel-redriver | Red River Level Gauge (NOAA) | https://water.noaa.gov/resources/hydrographs/fgon8_hg.png |
-
 
 ### USGS River Images
 
@@ -311,13 +340,7 @@ The Slide Timing Proxy Worker solves this by dynamically calculating the correct
 | Worker File       | src/index.js                                                                                  |
 | Secrets Required  | CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY |
 
-## 4.3 URL Parameters
-
-| **Parameter** | **Required** | **Description**                                                                             |
-|---------------|--------------|---------------------------------------------------------------------------------------------| 
-| screens       | Recommended  | Removed. No URL parameters are required. The Worker URL is used as-is with no query string. |
-
-### Example URL
+## 4.3 Example URL
 
 All stations use the same Worker URL with no additional parameters:
 
@@ -348,51 +371,40 @@ All stations use the same Worker URL with no additional parameters:
 
 ## 4.6 Configuration
 
-The top of src/index.js contains all values that may need to be changed. No other part of the file should need editing for normal operation. The only values that ever need to be adjusted are TOTAL_SECONDS, MIN_SECONDS, SLIDE_CACHE_SECONDS, and SLIDE_CACHE_VERSION.
-
 | **Constant**                     | **Description**                                                                                                                                                                                                                                                                                                                                                                                                  |
 |----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| PRESENTATION_ID and PUBLISHED_ID | These values are stored as Cloudflare Worker secrets (set in the Cloudflare dashboard under Workers & Pages → \[Worker Name\] → Settings → Variables and Secrets) and injected at runtime via the env object. PRESENTATION_ID is the alphanumeric ID between /d/ and /edit in the Google Slides URL. PUBLISHED_ID is the long string between /d/e/ and /pubembed in the File → Share → Publish to web embed URL. |
-| TOTAL_SECONDS                    | Total seconds the display system allocates to the slideshow slot. The Worker divides this equally across all slides. This must match the number of seconds the display is set to show the slide show.                                                                                                                                                                                                            |
-| MIN_SECONDS                      | Minimum seconds per slide regardless of how many slides exist. Prevents slides from being too brief to read.                                                                                                                                                                                                                                                                                                     |
-| SLIDE_CACHE_SECONDS              | How long (seconds) the slide count is cached using the Workers Cache API. During this window the Google Slides API is called at most once regardless of request volume. Default is 3600 (1 hour). Suitable when slide count changes infrequently.                                                                                                                                                                |
-| SLIDE_CACHE_VERSION              | Integer cache-buster. Increment by 1 to immediately invalidate the cached slide count and force a fresh Google API call on the next request. Use this when the slide count changes and displays need to pick up new timing without waiting for SLIDE_CACHE_SECONDS to expire.                                                                                                                                    |
-
+| PRESENTATION_ID and PUBLISHED_ID | Stored as Cloudflare Worker secrets and injected at runtime via the env object. PRESENTATION_ID is the alphanumeric ID between /d/ and /edit in the Google Slides URL. PUBLISHED_ID is the long string between /d/e/ and /pubembed in the File → Share → Publish to web embed URL. |
+| TOTAL_SECONDS                    | Total seconds the display system allocates to the slideshow slot.                                                                                                                                                                                                                                                                                                                                                |
+| MIN_SECONDS                      | Minimum seconds per slide regardless of how many slides exist.                                                                                                                                                                                                                                                                                                                                                   |
+| SLIDE_CACHE_SECONDS              | How long (seconds) the slide count is cached using the Workers Cache API. Default is 3600 (1 hour).                                                                                                                                                                                                                                                                                                              |
+| SLIDE_CACHE_VERSION              | Integer cache-buster. Increment by 1 to immediately invalidate the cached slide count.                                                                                                                                                                                                                                                                                                                           |
 
 ## 4.7 No-Content Screen
 
-If the presentation has zero slides, the Worker returns a styled HTML page instead of redirecting. This page displays a dark blue screen with the message NO CONTENT AVAILABLE. The page automatically refreshes every 60 seconds so the display will recover automatically as soon as slides are added to the presentation.
+If the presentation has zero slides, the Worker returns a styled HTML page instead of redirecting. This page displays a dark screen with the message NO CONTENT AVAILABLE and automatically refreshes every 60 seconds.
 
 ## 4.8 Google Service Account
 
-The Google Slides API no longer accepts simple API keys for reading presentation data. Authentication requires a service account — a non-human Google account that belongs to the Google Cloud project rather than to an individual person. The service account credentials are stored as GitHub secrets and injected into the Worker at deployment time.
+The Google Slides API requires a service account for authentication. The service account credentials are stored as GitHub secrets and injected into the Worker at deployment time. The service account only has read-only access to the Slides API scope.
 
-The service account only has read-only access to the Slides API scope. It does not have access to any Google Drive files, Google accounts, or any other Google services.
-
-| **Security Note**                                                                                                                                                                                                                                                                                                                                     |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Security Note**                                                                                                                                                                                                                                                                                                                                                                                                     |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | The service account private key (GOOGLE_PRIVATE_KEY) is a sensitive credential. It is stored only in GitHub Secrets and Cloudflare Worker secrets — never in the code itself. If a key is ever suspected to be compromised, it should be deleted in Google Cloud Console (IAM & Admin → Service Accounts → Keys) and a new one generated immediately. |
 
 # 5. Project: River Level Display
 
 ## 5.1 Purpose & Problem Solved
 
-Static NOAA river gauge images (used via the Image Resizing Proxy) show only a current stage and a basic hydrograph image. They cannot be customized for display resolution, do not show forecast data in a readable way at station screen sizes, and do not highlight flood threshold proximity relative to current conditions.
+Static NOAA river gauge images show only a current stage and a basic hydrograph image. They cannot be customized for display resolution, do not show forecast data in a readable way at station screen sizes, and do not highlight flood threshold proximity relative to current conditions.
 
-The River Level Display Worker solves this by fetching raw gauge data from the NOAA NWPS public API and rendering a fully custom, canvas-based hydrograph HTML page server-side. The page is tailored to the exact pixel dimensions of each station display layout and includes features not available in the static image:
+The River Level Display Worker solves this by fetching raw gauge data from the NOAA NWPS public API and rendering a fully custom, canvas-based hydrograph HTML page server-side. The page includes:
 
 - 120 hours of observed stage history with a gradient fill
-
 - NWS forecast data displayed as a dashed line
-
 - Flood threshold lines (action/minor/moderate/major) shown only when within range
-
 - A crest marker when the river has peaked and is confirmed falling
-
 - An adaptive X-axis that adjusts label density based on available width
-
 - A real-time flood status badge in the header (Normal / Action / Minor / Moderate / Major)
-
 - Auto-refresh every 15 minutes matching the NOAA data update cycle
 
 ## 5.2 Repository & Deployment
@@ -410,114 +422,46 @@ The River Level Display Worker solves this by fetching raw gauge data from the N
 | **Parameter** | **Default** | **Options**                  | **Description**                                                         |
 |---------------|-------------|------------------------------|-------------------------------------------------------------------------|
 | gauge         | fargo       | Any key from GAUGES registry | Which river gauge to display. See Section 5.7 for the current registry. |
-| layout        | split       | wide, split, tri, full       | Column width matching display hardware. See Section 5.4 for dimensions. |
+| layout        | split       | wide, split, tri, full       | Column width matching display hardware.                                  |
 
-### Example URLs
-
-Red River gauge in a two-column layout (all defaults):
-
-`https://river-level-display.bwehner.workers.dev/`
-
-Red River gauge in a three-column layout:
-
-`https://river-level-display.bwehner.workers.dev/?layout=tri`
-
-Red River gauge in a full-screen layout:
-
-`https://river-level-display.bwehner.workers.dev/?layout=full`
-
-## 5.4 Layout Dimensions
-
-Dimensions match the station-image-proxy project exactly and should not be changed unless the display hardware changes.
-
-| **Layout Key** | **Width (px)** | **Height (px)** | **Use Case**                     |
-|----------------|----------------|-----------------|----------------------------------|
-| wide           | 1735           | 720             | Full-width single column display |
-| split          | 852            | 720             | Two-column display (default)     |
-| tri            | 558            | 720             | Three-column display             |
-| full           | 1920           | 1075            | Full-screen display              |
-
-## 5.5 How It Works
-
-When a display screen loads the Worker URL, the following sequence occurs:
+## 5.4 How It Works
 
 1.  The Worker makes two parallel requests to the NOAA NWPS public API: one for gauge metadata (name, flood thresholds) and one for observed and forecast stage data. No authentication is required.
 
-2.  The Worker processes the response: it trims observed history to the configured window (120 hours), combines observed and forecast data, detects a crest if the river has peaked and is confirmed falling, and determines the current flood status.
+2.  The Worker processes the response: it trims observed history to the configured window, combines observed and forecast data, detects a crest if the river has peaked, and determines the current flood status.
 
 3.  All processed data is injected as a JSON literal into a self-contained HTML page. No further API calls are made by the display browser.
 
-4.  The browser renders the hydrograph on a canvas element using the injected data. Font sizes, chart margins, and axis label density adapt automatically to the selected layout dimensions.
+4.  The browser renders the hydrograph on a canvas element using the injected data.
 
-5.  The page auto-refreshes every 15 minutes via a meta refresh tag, matching the NOAA data update cycle.
+5.  The page auto-refreshes every 15 minutes via a meta refresh tag.
 
 If the NOAA API is unreachable or returns an error, the Worker returns a styled error page that automatically retries every 60 seconds.
 
-## 5.6 Configuration
+## 5.5 Configuration
 
-The top of src/index.js contains all values that may need to be changed. No other part of the file should need editing for routine operation.
+| **Constant**            | **Description**                                                                                                                                                               |
+|-------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| GAUGES                  | Registry mapping URL-friendly keys to NOAA gauge IDs and display names. Add new gauges here.                                                                                  |
+| DEFAULT_GAUGE           | The gauge used when the ?gauge= parameter is omitted.                                                                                                                         |
+| OBSERVED_HOURS          | How many hours of observed history to show on the chart (default: 120).                                                                                                       |
+| CACHE_SECONDS           | How long Cloudflare edge-caches the NOAA API response (default: 900 = 15 minutes).                                                                                           |
+| Y_AXIS_PADDING          | Feet of padding added above and below the data range on the Y axis.                                                                                                           |
+| THRESHOLD_LOOKAHEAD_FT  | A flood threshold line is only shown when it falls within this many feet of the data maximum.                                                                                 |
+| CREST_MIN_FLANK_POINTS  | Number of data points required on each side of the peak before a crest is confirmed.                                                                                         |
+| CREST_MIN_PROMINENCE_FT | The peak must be at least this many feet above the average of the flanking data to be labeled as a crest.                                                                    |
 
-```javascript
-const GAUGES = {
-  'fargo': { id: 'FGON8', name: 'Red River at Fargo' },
-};
+## 5.6 Adding New Gauges
 
-const DEFAULT_GAUGE = 'fargo';
-const OBSERVED_HOURS = 72;
-const CACHE_SECONDS = 900;
-const Y_AXIS_PADDING = 1.5;
-const THRESHOLD_LOOKAHEAD_FT = 3.0;
-const CREST_MIN_FLANK_POINTS = 4;
-const CREST_MIN_PROMINENCE_FT = 0.5;
-```
+1.  Find the NOAA gauge ID at water.noaa.gov (e.g. FGON8 for Fargo, ND).
+2.  Edit src/index.js on the staging branch and add a new entry to the GAUGES object: `'your-key': { id: 'NWSID', name: 'Human-readable name' },`
+3.  Test using the staging URL with ?gauge=your-key before merging to main.
 
-| **Constant**            | **Description**                                                                                                                                                                               |
-|-------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| GAUGES                  | Registry mapping URL-friendly keys to NOAA gauge IDs and display names. Add new gauges here (see Section 5.7).                                                                                |
-| DEFAULT_GAUGE           | The gauge used when the ?gauge= parameter is omitted from the URL.                                                                                                                            |
-| OBSERVED_HOURS          | How many hours of observed history to show on the chart (default: 120).                                                                                                                       |
-| CACHE_SECONDS           | How long Cloudflare caches the Worker response in seconds (default: 900 = 15 minutes). NOAA updates data every 30 minutes so 15 minutes provides fresh data without excessive upstream calls. |
-| Y_AXIS_PADDING          | Feet of padding added above and below the data range on the Y axis to keep data points off chart edges.                                                                                       |
-| THRESHOLD_LOOKAHEAD_FT  | A flood threshold line is only shown when it falls within this many feet of the data maximum. Keeps the chart uncluttered when the river is well below flood stage.                           |
-| CREST_MIN_FLANK_POINTS  | Number of data points required on each side of the peak before a crest is confirmed. At NOAA's 30-min interval, 4 points represents ~2 hours of trend on each side.                           |
-| CREST_MIN_PROMINENCE_FT | The peak must be at least this many feet above the average of the flanking data to be labeled as a crest. Prevents noise or flat conditions from being labeled.                               |
+## 5.7 Current Gauge Registry
 
-## 5.7 Adding New Gauges
-
-All gauges are defined in the GAUGES object near the top of src/index.js. To add a new gauge:
-
-1.  Find the NOAA gauge ID for the location. Go to water.noaa.gov, search for the gauge location, and find the four- to five-character identifier in the URL (for example, FGON8 for Fargo, ND).
-
-2.  Open the staging branch of the river-level-display repository in GitHub.
-
-3.  Edit src/index.js and locate the GAUGES object.
-
-4.  Add a new line following the existing format:
-
-`'your-key': { id: 'NWSID', name: 'Human-readable name' },`
-
-5.  Commit the change to staging and test using the staging Worker URL with ?gauge=your-key before merging to main.
-
-## 5.8 Current Gauge Registry
-
-| **Key (?gauge=)** | **NOAA Gauge ID** | **Display Name**   | **Notes**                                   |
-|-------------------|-------------------|--------------------|---------------------------------------------|
-| fargo             | FGON8             | Red River at Fargo | Default gauge — no ?gauge= parameter needed |
-
-
-## 5.9 Chart Features Reference
-
-| **Feature**        | **Description**                                                                                                                                                                                                |
-|--------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Observed line      | Solid blue line showing the last 72 hours of recorded stage readings with a gradient fill beneath                                                                                                              |
-| Forecast line      | Dashed amber line showing the NWS official forecast, displayed when forecast data is available from NOAA                                                                                                       |
-| Flood thresholds   | Horizontal dashed lines for Action, Minor, Moderate, and Major flood stages. Only displayed when within 3 ft of the chart's data maximum to avoid cluttering a chart when the river is well below flood        |
-| Crest marker       | Diamond marker with a dashed vertical line and label box showing the crest stage and time, displayed when the river has peaked and the descent is confirmed by at least 4 data points on each side of the peak |
-| NOW marker         | Vertical dashed line marking the current time on the chart                                                                                                                                                     |
-| Flood status badge | Color-coded badge in the header showing current status: Normal (green), Action (yellow), Minor (orange), Moderate (red), Major (dark red)                                                                      |
-| Legend             | Automatically repositioned in the top-right of the chart area to avoid overlapping threshold lines                                                                                                             |
-| Auto-refresh       | Page reloads every 15 minutes to pick up new NOAA data                                                                                                                                                         |
-| Error recovery     | If the NOAA API is unavailable, an error page is displayed that retries every 60 seconds                                                                                                                       |
+| **Key (?gauge=)** | **NOAA Gauge ID** | **Display Name**   |
+|-------------------|-------------------|--------------------|
+| fargo             | FGON8             | Red River at Fargo |
 
 # 6. Project: Daily Message Display
 
@@ -533,58 +477,49 @@ Station displays previously had no mechanism for showing rotating safety message
 | Production URL    | https://daily-message-display.bwehner.workers.dev/                                                                                     |
 | Staging URL       | https://daily-message-display-staging.bwehner.workers.dev/                                                                             |
 | Worker File       | src/index.js                                                                                                                           |
-| Secrets Required  | CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY, GOOGLE_SHEET_ID, GOOGLE_DRIVE_FOLDER_ID |
+| Secrets Required  | CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID (GitHub); GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY, GOOGLE_SHEET_ID, GOOGLE_DRIVE_FOLDER_ID (Cloudflare dashboard) |
 
 ## 6.3 URL Parameters
 
-Full-screen default (no parameter needed):
-
-https://daily-message-display.bwehner.workers.dev/
-
-Two-column split layout:
-
-https://daily-message-display.bwehner.workers.dev/?layout=split
-
-The ?layout= parameter accepts: full (1920x1080, default), wide (1735x720), split (852x720), tri (558x720). The Daily Safety Message title label is only shown in the full layout.
+The ?layout= parameter accepts: full (1920x1075, default), wide (1735x720), split (852x720), tri (558x720). The Daily Safety Message title label is only shown in the full layout.
 
 ## 6.4 How It Works
 
-1\. The Worker authenticates with Google using the shared service account (same account as slide-timing-proxy), generating a short-lived OAuth2 access token.
+1. The Worker authenticates with Google using the shared service account, generating a short-lived OAuth2 access token.
 
-2\. The Worker fetches the Messages tab from Google Sheets and lists image files in the Google Drive folder in parallel.
+2. The Worker fetches the Messages tab from Google Sheets and lists image files in the Google Drive folder in parallel.
 
-3\. Date override entries are checked first. If today's date matches a pinned image filename prefix or a sheet row's Date column, that entry is selected. Images take priority over text if both are pinned to the same date.
+3. Date override entries are checked first. If today's date matches a pinned image filename prefix or a sheet row's Date column, that entry is selected. Images take priority over text if both are pinned to the same date.
 
-4\. If no date override matches, a combined rotation pool is built by interleaving active text entries and image files evenly. The pool index is: floor(daysElapsed / ROTATION_DAYS) % poolSize, anchored to January 23, 2026 in America/Chicago time.
+4. If no date override matches, a combined rotation pool is built by interleaving active text entries and image files evenly. The pool index is: floor(daysElapsed / ROTATION_DAYS) % poolSize, anchored to January 23, 2026 in America/Chicago time.
 
-5\. For image entries, the Worker fetches the image from Drive server-side and encodes it as a base64 data URI. The display browser never contacts Google directly.
+5. For image entries, the Worker locates the file in Google Drive and serves it via a streaming proxy route (/image/{fileId}). The display browser requests the image from the Worker, which fetches it from Drive server-side using the service account token and streams the bytes directly to the browser. No base64 encoding is performed — this keeps CPU usage low and avoids Cloudflare's 10ms CPU limit even for large images.
 
-6\. A self-contained HTML page is returned. The meta-refresh interval is set to the exact seconds until the next 7:30 AM Central rotation, limiting Worker invocations to approximately one per station per day.
-
+6. A self-contained HTML page is returned. The meta-refresh interval is set to the exact seconds until the next 7:30 AM Central rotation.
 
 ## 6.5 Rotation Logic
 
-Messages rotate every ROTATION_DAYS calendar days (default: 3). With 3-day blocks aligned to the 9-day shift rotation, each message is seen by all three shifts before advancing. Day boundaries use America/Chicago time via Intl.DateTimeFormat, so DST transitions are handled correctly. To change frequency, update ROTATION_DAYS in src/index.js (minimum: 1 day).
+Messages rotate every ROTATION_DAYS calendar days (default: 3). With 3-day blocks aligned to the 9-day shift rotation, each message is seen by all three shifts before advancing. Day boundaries use America/Chicago time via Intl.DateTimeFormat, so DST transitions are handled correctly.
 
 ## 6.6 Configuration
 
-The top of src/index.js contains all values that may need to be changed. Key constants: ROTATION_DAYS (default 3), ROTATION_ANCHOR (2026-01-23), IMAGE_SOURCE ("drive" or "network"), DEFAULT_LAYOUT ("full"). No other part of the file should need editing for routine operation.
+Key constants in src/index.js: ROTATION_DAYS (default 3), ROTATION_ANCHOR (2026-01-23), IMAGE_SOURCE ("drive" or "network"), DEFAULT_LAYOUT ("full").
 
 ## 6.7 Content Management
 
-**Text messages:** Add rows to the Messages tab of the Google Sheet "Fire Station Display — Daily Messages". Set Active to "yes". Date and Attribution are optional. See the sheet's Instructions tab for full guidance.
+**Text messages:** Add rows to the Messages tab of the Google Sheet "Fire Station Display — Daily Messages". Set Active to "yes". Date and Attribution are optional.
 
-**Images:** Drop image files into the "Fire Station Display — Daily Images" Drive folder. Optimize to under 5 MB before uploading. Move files into any subfolder to deactivate.
+**Images:** Drop image files into the "Fire Station Display — Daily Images" Drive folder. Images under 2 MB are recommended for best display performance — larger files will work but may cause a noticeable slight delay when the page first loads on hardware. Move files into any subfolder to deactivate.
 
 **Date pinning:** For text, enter YYYY-MM-DD in the Date column. For images, prefix the filename: YYYY-MM-DD-filename.jpg. Images win if both sources are pinned to the same date.
 
 ## 6.8 Google Sheet Columns
 
-Columns are read by header name so they can be reordered without code changes. Required columns: Content, Active. Optional columns: Date, Attribution. The header row is protected with an edit warning.
+Required columns: Content, Active. Optional columns: Date, Attribution. The header row is protected with an edit warning. Columns are read by header name so they can be reordered without code changes.
 
 ## 6.9 Network Share (Future Use)
 
-The Worker includes a stubbed code path for an internal network share. To activate: set IMAGE_SOURCE = "network" in src/index.js and add secrets NETWORK_SHARE_URL (required), NETWORK_SHARE_USERNAME and NETWORK_SHARE_PASSWORD (optional, for authenticated shares) to both Cloudflare Worker settings and deploy.yml. See src/index.js comments for full setup details.
+The Worker includes a stubbed code path for an internal network share. To activate: set IMAGE_SOURCE = "network" in src/index.js and add secrets NETWORK_SHARE_URL, NETWORK_SHARE_USERNAME, and NETWORK_SHARE_PASSWORD to Cloudflare Worker settings.
 
 # 7. Project: Calendar Display
 
@@ -604,68 +539,59 @@ The station display system did not previously have a way to display the departme
 
 ## 7.3 URL Parameters
 
-The ?layout= parameter controls which design is rendered. wide and full use the split view (today detail on the left, next 4 days on the right) and include NWS weather data. split and tri use the strip view (compact upcoming list) with no weather data. The FFD Calendar title label is only shown in the full layout. Default is wide.
-
-Example URLs: https://calendar-display.bwehner.workers.dev/?layout=wide \| https://calendar-display.bwehner.workers.dev/?layout=full \| https://calendar-display.bwehner.workers.dev/?layout=split \| https://calendar-display.bwehner.workers.dev/?layout=tri
+The ?layout= parameter controls which design is rendered. wide and full use the split view (today detail on the left, next days on the right) and include NWS weather data. split and tri use the strip view (compact upcoming list) with no weather data. Default is wide.
 
 ## 7.4 How It Works
 
-1\. The Worker checks the Workers Cache API for a previously rendered page matching the requested layout. If a valid cached response exists it is returned immediately — no further requests are made.
+1. The Worker checks the Workers Cache API for a previously rendered page matching the requested layout. If a valid cached response exists it is returned immediately.
 
-2\. On a cache miss, data is fetched. For split and tri layouts, only the ICS file is fetched from Nextcloud via WebDAV. For wide and full layouts, the ICS file and all three NWS endpoints (daily forecast, hourly forecast, active alerts) are fetched in parallel using Promise.all to minimize total latency. Each NWS fetch fails gracefully — if weather data is unavailable, the calendar renders without it rather than returning an error.
+2. On a cache miss, data is fetched. For split and tri layouts, only the ICS file is fetched. For wide and full layouts, the ICS file and all NWS endpoints (daily forecast, hourly forecast, active alerts) are fetched in parallel.
 
-3\. The raw ICS text is fetched server-side from Nextcloud using HTTP Basic authentication with a Nextcloud app password. The display browser never contacts Nextcloud directly. Windows timezone names emitted by Exchange (e.g. "Central Standard Time") are automatically mapped to IANA timezone identifiers.
+3. The raw ICS text is fetched server-side from Nextcloud using HTTP Basic authentication with a Nextcloud app password. The display browser never contacts Nextcloud directly. Windows timezone names emitted by Exchange (e.g. "Central Standard Time") are automatically mapped to IANA timezone identifiers.
 
-4\. Filter rules are applied, a self-contained HTML page is rendered, stored in the Workers Cache API for CACHE_SECONDS (default 15 minutes), and returned to the display.
-
+4. Filter rules are applied, a self-contained HTML page is rendered, stored in the Workers Cache API for CACHE_SECONDS (default 15 minutes), and returned to the display.
 
 ## 7.5 Automatic Calendar Update System
 
-The calendar is kept current by a three-component system that runs automatically at login on the designated department computer. No manual steps are required during normal operation.
+The calendar is kept current by a three-component system that runs automatically at login on the designated department computer:
 
-- Outlook VBA macro (ThisOutlookSession in the Outlook VBA editor): Runs automatically when Outlook opens. Exports the next 30 days of the FFD Calendar public folder (Public Folders \> Fire \> FFD Calendar) to U:\Fire\BWehner\FFD Calendar Export\FFD Calendar Calendar.ics. The export includes yesterday so that all-day events starting at midnight are not missed if the export runs later in the day.
+- **Outlook VBA macro** (ThisOutlookSession in the Outlook VBA editor): Runs automatically when Outlook opens. Exports the next 30 days of the FFD Calendar public folder to U:\Fire\BWehner\FFD Calendar Export\FFD Calendar Calendar.ics.
 
-- Nextcloud desktop app: Syncs the FFD Calendar Export folder to Nextcloud automatically. No configuration is required as long as the Nextcloud desktop app is installed and the FFD Calendar Export folder is inside the Nextcloud sync path. The file is typically synced within a few seconds of the macro writing it.
+- **Nextcloud desktop app**: Syncs the FFD Calendar Export folder to Nextcloud automatically. The file is typically synced within seconds of the macro writing it.
 
-- No Task Scheduler task is required. The Nextcloud desktop app handles syncing passively whenever the ICS file changes.
-
-Full setup instructions for rebuilding this system on a new computer are in U:\Fire\BWehner\FFD Calendar Export\FFD Calendar Export Setup.txt. A backup of the Outlook VBA macro is at U:\Fire\BWehner\FFD Calendar Export\VbaProject.OTM. Note: rclone.exe and rclone.conf in that folder are no longer needed and can be deleted.
+Full setup instructions for rebuilding this system on a new computer are in U:\Fire\BWehner\FFD Calendar Export\FFD Calendar Export Setup.txt.
 
 ## 7.6 Configuration
 
-The top of src/index.js contains all values that may need to be changed. Calendar constants: DAYS_TO_SHOW (default 6), CACHE_SECONDS (default 900 = 15 minutes), CACHE_VERSION (increment to bust all cached pages immediately — useful after any configuration change affecting the rendered output), FILTER_EXACT (event titles excluded by exact match), FILTER_CONTAINS (event titles excluded by substring match), ALLDAY_COLORS (custom banner colors per event title). NWS weather constants: NWS_OFFICE (FGF), NWS_GRID_X (65), NWS_GRID_Y (57), NWS_ALERT_ZONE (NDZ039 — Cass County ND), WEATHER_HOUR_INTERVAL (hours between hourly strip slots, default 2), WEATHER_STRIP_WIDTH (px width of hourly strip, default 75), WEATHER_ICON_SIZE (px size of SVG icons in hourly strip, default 18), NWS_FORECAST_CACHE_SECONDS (edge cache TTL for forecast data, default 3600 = 1 hour), NWS_ALERTS_CACHE_SECONDS (edge cache TTL for alert data, default 900 = 15 minutes). NWS_USER_AGENT is set as a plain \[vars\] entry in wrangler.toml (not a secret) and identifies the Worker to the NWS API. See the repository README for the full configuration table.
+Key constants in src/index.js: DAYS_TO_SHOW (default 6), CACHE_SECONDS (default 900 = 15 minutes), CACHE_VERSION (increment to bust all cached pages immediately), FILTER_EXACT, FILTER_CONTAINS, ALLDAY_COLORS. NWS constants: NWS_OFFICE (FGF), NWS_GRID_X (65), NWS_GRID_Y (57), NWS_ALERT_ZONE (NDZ039 — Cass County ND), SHOW_WEATHER (boolean to enable/disable all weather fetches).
 
-## 7.7 NWS Weather Display (wide / full layouts)
+## 7.7 NWS Weather Display
 
-Weather data is fetched from the National Weather Service public API (api.weather.gov) with no API key required. NWS_USER_AGENT is sent in request headers as required by the NWS API terms of service. All NWS fetches are edge-cached separately from the page cache: forecasts for NWS_FORECAST_CACHE_SECONDS (default 1 hour) and alerts for NWS_ALERTS_CACHE_SECONDS (default 15 minutes).
+Weather data is fetched from api.weather.gov with no API key required. All NWS fetches are edge-cached separately from the page cache.
 
-Daily forecast: Every column header — including today — shows the high temperature (orange), low temperature (blue), a condition dot and short forecast text, and the wind direction and speed range. A small color-coded dot precedes the condition text as a quick visual category cue: yellow for sun/clear, soft yellow for partly cloudy, amber for thunderstorm, light blue for snow, blue-purple for wintry mix/sleet/freezing precipitation, bright blue for rain/drizzle, and gray-blue for cloudy/fog/wind/default.
+**Daily forecast:** Every column header shows the high temperature (orange), low temperature (blue), a condition icon and short forecast text, and wind direction and speed.
 
-Hourly forecast strip: The left side of the today panel body shows remaining hours of today at WEATHER_HOUR_INTERVAL intervals. Each slot shows the hour label (NOW, 2 PM, etc.), temperature, and an inline SVG weather icon. SVG icons are used instead of emoji to ensure correct rendering on display hardware that may lack an emoji font. The slot count is automatically capped to prevent overflow.
+**Hourly forecast strip:** The today panel body shows remaining hours at configurable intervals. Each slot shows the hour label, temperature, and an inline SVG weather icon.
 
-Alert banners: Active NWS alerts for Cass County (NDZ039) appear as full-width colored banners above the calendar panels, sorted by severity. Red = Extreme/Severe (Warning), Orange = Moderate (Watch), Yellow = Minor (Advisory). Each banner shows the alert name and when it ends. The end time is taken from the ends field (actual weather event end) rather than the expires field (when NWS will issue the next product update), so displayed times match what other weather services show. Banners disappear automatically after the next cache refresh once the alert expires.
+**Alert banners:** Active NWS alerts for Cass County (NDZ039) appear as full-width colored banners above the calendar panels, sorted by severity. Red = Warning, Orange = Watch, Yellow = Advisory. Each banner shows the alert name and when it ends.
 
-Alert badges: Upcoming alerts not yet active appear as severity-colored pills in the affected day's column header. Multi-day alerts appear in every overlapping day's header. All headers render the same number of badge rows (real + invisible placeholders) so header heights stay uniform across all columns. The CSS grid row auto-sizing ensures all headers always match the height of the tallest header regardless of weather content.
+**Alert badges:** Upcoming alerts not yet active appear as severity-colored pills in affected day column headers.
 
 ## 7.8 Event Filtering & All-Day Colors
 
-Two filter arrays control which events are hidden. FILTER_EXACT requires the event title to match the filter string exactly (case-insensitive) and is used for titles that could appear as substrings of legitimate event names. FILTER_CONTAINS hides any event whose title contains the string anywhere. To temporarily disable a filter without deleting it, add // to the beginning of the line.
-
-All-day events are rendered as colored banners at the top of each day. The ALLDAY_COLORS map assigns custom background, border, and text colors per event title (case-insensitive exact match). Current shift colors: A Shift = dark green, B Shift = off-white with dark text, C Shift = dark red. Events not in the map use the default blue banner style.
+FILTER_EXACT and FILTER_CONTAINS control which events are hidden. ALLDAY_COLORS assigns custom colors per event title. Current shift colors: A Shift = dark green, B Shift = off-white with dark text, C Shift = dark red.
 
 ## 7.9 Manual Calendar Update
 
-To update the calendar outside of a normal login, open Outlook, open the VBA editor (Developer tab \> Visual Basic), click anywhere inside Application_Startup, and press F5. The Nextcloud desktop app will sync the updated file automatically within a few seconds. No PowerShell command or manual upload is required.
+To update the calendar outside of a normal login: open Outlook, open the VBA editor (Developer tab → Visual Basic), click anywhere inside Application_Startup, and press F5. The Nextcloud desktop app will sync the updated file automatically within seconds.
 
-The Worker caches pages for 15 minutes. To force an immediate cache refresh after a manual upload, increment CACHE_VERSION in src/index.js by 1, deploy to staging, test, and merge to main.
+To force an immediate cache refresh: increment CACHE_VERSION in src/index.js by 1, deploy to staging, test, and merge to main.
 
 # 8. Project: Probationary Firefighter Display
 
 ## 8.1 Purpose & Problem Solved
 
-The station display system had no automated way to introduce new hires to the rest of the department. Previously, new firefighter information was manually maintained in a separate system with limited fields and required manual updates. The Probationary Firefighter Display Worker automates this entirely by reading firefighter bio data from a Google Sheet and photos from a Google Drive folder, then rendering a rotating spotlight page that cycles through every active new hire on the same 3-day rotation used by the Daily Message Display.
-
-Firefighters are considered active for 365 days from their hire date and drop off automatically with no manual action required.
+The Probationary Firefighter Display Worker automates the introduction of new hires department-wide by reading firefighter bio data from a Google Sheet and photos from a Google Drive folder, then rendering a rotating spotlight page that cycles through every active new hire on the same 3-day rotation used by the Daily Message Display. Firefighters are considered active for 365 days from their hire date and drop off automatically with no manual action required.
 
 ## 8.2 Repository & Deployment
 
@@ -679,230 +605,440 @@ Firefighters are considered active for 365 days from their hire date and drop of
 
 ## 8.3 URL Parameters
 
-The ?layout= parameter controls which design is rendered. The default is wide. The full layout adds a "PROBATIONARY FIREFIGHTERS" title bar at the top. All other layouts rely on the title bar provided by the display system.
-
-Example URLs: https://probationary-firefighter-display.bwehner.workers.dev/ | https://probationary-firefighter-display.bwehner.workers.dev/?layout=full | https://probationary-firefighter-display.bwehner.workers.dev/?layout=split
+The ?layout= parameter controls which design is rendered. Default is wide. The full layout adds a "PROBATIONARY FIREFIGHTERS" title bar at the top.
 
 ## 8.4 How It Works
 
-1\. The Worker authenticates with Google using the shared service account (same account as slide-timing-proxy and daily-message-display), generating a short-lived OAuth2 access token.
+1. The Worker authenticates with Google using the shared service account, generating a short-lived OAuth2 access token.
 
-2\. Firefighter records from the Google Sheet and the Drive photo file listing are fetched in parallel.
+2. Firefighter records from the Google Sheet and the Drive photo file listing are fetched in parallel.
 
-3\. The active list is built: only firefighters whose hire date is within 365 days of today are included. The list is sorted by hire date ascending, then name ascending, for a stable consistent rotation order.
+3. The active list is built: only firefighters whose hire date is within 365 days of today are included. The list is sorted by hire date ascending, then badge number ascending, for a stable consistent rotation order.
 
-4\. The current firefighter is selected using the same rotation block index as daily-message-display: floor(daysElapsed / ROTATION_DAYS) % activeCount, anchored to January 23, 2026 in America/Chicago time.
+4. The current firefighter is selected using the same rotation block index as daily-message-display: floor(daysElapsed / ROTATION_DAYS) % activeCount, anchored to January 23, 2026 in America/Chicago time.
 
-5\. The firefighter's photo is fetched from Drive server-side using a case-insensitive filename match and encoded as a base64 data URI. If no photo is found, a neutral person silhouette is shown in its place so the layout remains visually consistent.
+5. A self-contained HTML page is returned with the photo on the left and bio information on the right (wide/full layouts) or stacked (split/tri layouts). The photo is served via a streaming proxy route (/photo/{fileId}) — the display browser requests the photo from the Worker, which fetches it from Drive server-side using the service account token and streams the bytes directly to the browser. No base64 encoding is performed. The service account token never appears in any client-visible URL.
 
-6\. A self-contained HTML page is returned with the photo on the left and bio information on the right (wide/full layouts) or stacked top-to-bottom (split/tri layouts). The meta-refresh interval is set to the exact seconds until the next 7:30 AM Central rotation boundary.
+6. The meta-refresh interval is set to the exact seconds until the next 7:30 AM Central rotation boundary. No server-side caching is used — every request generates a fresh page to ensure the display always reflects the current rotation.
 
 ## 8.5 Rotation Logic
 
-The rotation is identical to daily-message-display in all respects: 3-day blocks, anchored to January 23, 2026, advancing at 7:30 AM Central (DST-safe). After the last active firefighter the list loops back to the first. When a new firefighter is added or an existing one ages out, the active list is recalculated from scratch on the next request and the rotation adjusts automatically.
+The rotation is identical to daily-message-display in all respects: 3-day blocks, anchored to January 23, 2026, advancing at 7:30 AM Central (DST-safe). After the last active firefighter the list loops back to the first. When a new firefighter is added or an existing one ages out, the active list is recalculated from scratch on the next request.
 
 ## 8.6 Data Sources
 
-**Google Sheet:** Fire Station Display – Probationary Firefighter Information (tab: Firefighters). One row per firefighter. Both the sheet and the Drive folder must be shared with the service account email (Viewer permission).
+**Google Sheet:** Fire Station Display – Probationary Firefighter Information (tab: Firefighters). Both the sheet and the Drive folder must be shared with the service account email (Viewer permission).
 
-**Google Drive folder:** Fire Station Display – Probationary Firefighter Images. Photos are named firstnamelastname.jpg (e.g. makenziekotchman.jpg). The filename entered in the Photo column of the sheet must match the Drive filename exactly (the match is case-insensitive). Keep photo file sizes under 1 MB for reliable Worker performance.
+**Google Drive folder:** Fire Station Display – Probationary Firefighter Images. Photos are named firstnamelastname.jpg (e.g. makenziekotchman.jpg). The filename entered in the Photo column of the sheet must match the Drive filename (case-insensitive). Photos under 2 MB are recommended for best display performance — larger files will work but may cause a noticeable slight delay when the page first loads on hardware.
 
 ## 8.7 Google Sheet Column Reference
 
-The sheet uses fixed reserved columns and dynamic Q&A columns. Fixed columns are identified by header name (case-insensitive). All other columns are treated as Q&A pairs where the column header is the question and the cell value is the answer. Questions appear on the display in the same order as the sheet columns. Blank cells are silently omitted.
+| **Column Header**    | **Required?** | **Notes**                                                                                                                              |
+|----------------------|---------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| Name                 | Yes           | Full name                                                                                                                              |
+| Hire Date            | Yes           | Format: YYYY-MM-DD (e.g. 2026-01-19). Used to calculate active status.                                                                 |
+| Rank                 | No            | e.g. Probationary Firefighter.                                                                                                        |
+| Shift                | No            | A, B, C, Days, or Recruit Academy                                                                                                     |
+| Badge                | No            | Plain badge number. Used for secondary sort within the same hire date.                                                                |
+| Photo                | No            | Filename of photo in Drive folder (e.g. makenziekotchman.jpg). Match is case-insensitive.                                             |
+| Hometown             | No            | Displayed in the fixed fields group alongside Hire Date, Shift, and Badge                                                             |
+| Any other column     | No            | Treated as a dynamic Q&A pair. Header = question, cell = answer. Displayed below the fixed fields in column order.                    |
 
-| **Column Header**    | **Required?** | **Notes**                                                                                                                                    |
-|----------------------|---------------|----------------------------------------------------------------------------------------------------------------------------------------------|
-| Name                 | Yes           | Full name                                                                                                                                    |
-| Hire Date            | Yes           | Format: YYYY-MM-DD (e.g. 2026-01-19). Used to calculate active status.                                                                       |
-| Rank                 | No            | e.g. Probationary Firefighter. Used for employees with a title other than the standard rank.                                                 |
-| Shift                | No            | A, B, C, Days, or Recruit Academy                                                                                                            |
-| Badge                | No            | Plain badge number                                                                                                                           |
-| Photo                | No            | Filename of photo in Drive folder (e.g. makenziekotchman.jpg). Match is case-insensitive.                                                    |
-| Hometown             | No            | Displayed in the fixed fields group alongside Hire Date, Shift, and Badge                                                                   |
-| Any other column     | No            | Treated as a dynamic Q&A pair. Header = question, cell = answer. Displayed below the fixed fields, spaced evenly to fill remaining vertical space. |
+## 8.8 Configuration
 
-## 8.8 Configuration (src/index.js)
-
-The top of src/index.js contains all values that may need to be changed. No other part of the file should need editing for routine operation.
-
-| **Constant**       | **Description**                                                                                                                                      |
-|--------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
-| ROTATION_DAYS      | Consecutive days each firefighter displays before advancing (default 3). Must match daily-message-display.                                           |
-| ROTATION_ANCHOR    | Anchor date for rotation (2026-01-23). Matches daily-message-display. Do not change unless intentionally resetting the cycle.                        |
-| HIRE_ACTIVE_DAYS   | Days after hire date a firefighter remains on the display (default 365). Firefighters drop off automatically — no manual removal needed.             |
-| SHEET_TAB_NAME     | Name of the tab in the Google Sheet (default: Firefighters). Update if the tab is ever renamed.                                                      |
-| outerPad multiplier | Controls equal padding around all content edges (default: 0.022). Located in the buildFirefighterPage function. Higher = more padding, lower = less. |
+| **Constant**    | **Description**                                                                                                              |
+|-----------------|------------------------------------------------------------------------------------------------------------------------------|
+| ROTATION_DAYS   | Consecutive days each firefighter displays before advancing (default 3). Must match daily-message-display.                   |
+| ROTATION_ANCHOR | Anchor date for rotation (2026-01-23). Matches daily-message-display. Do not change unless intentionally resetting the cycle.|
+| HIRE_ACTIVE_DAYS| Days after hire date a firefighter remains on the display (default 365). Firefighters drop off automatically.                |
+| SHEET_TAB_NAME  | Name of the tab in the Google Sheet (default: Firefighters).                                                                 |
 
 ## 8.9 Adding a New Hire
 
 1.  Add a new row to the Firefighters tab in the Google Sheet with at minimum Name and Hire Date filled in.
 
-2.  Upload the firefighter's photo to the Drive folder named firstnamelastname.jpg (e.g. makenziekotchman.jpg). Keep the file size under 1 MB. The website squoosh.app can be used to resize any images that are too large. It is a service made by Google.
+2.  Upload the firefighter's photo to the Drive folder named firstnamelastname.jpg. Keep the file size under 2 MB for best performance. squoosh.app can be used to resize images.
 
-3.  Enter the filename in the Photo column of the sheet. Fill in any other available fields. Any blank field is automatically omitted from the display.
+3.  Enter the filename in the Photo column of the sheet. Fill in any other available fields. Blank fields are automatically omitted from the display.
 
 4.  The Worker will pick up the changes on the next page load. No code change or redeployment is needed.
 
 ## 8.10 Adding a New Class with Different Questions
 
-Add new column headers to row 1 of the sheet for the new questions. Existing rows with no value in those columns will not show those questions. Old question columns with no values for the new class work the same way — blank cells are simply omitted. No code changes are required.
+Add new column headers to row 1 of the sheet for the new questions. Blank cells are simply omitted — no code changes are required.
 
-# 9. Deployment & Maintenance Workflow
+# 9. Project: Department News Display
 
-## 9.1 Branch Strategy
+## 9.1 Purpose & Problem Solved
 
-Each repository uses two branches. All changes must go through staging before being merged to main. This applies to all five Worker projects.
+Station displays previously had no way to show department-wide announcements or station-specific news in a structured, easy-to-manage format. The Department News Display Worker renders a card-based news feed sourced from a Google Sheet, with separate tabs for department-wide news and each individual fire station. Content is managed directly in the sheet by authorized personnel and appears on displays within minutes of being saved.
+
+## 9.2 Repository & Deployment
+
+| **Item**          | **Value**                                                                                                                    |
+|-------------------|------------------------------------------------------------------------------------------------------------------------------|
+| GitHub Repository | github.com/wehnerb/department-news-display                                                                                   |
+| Production URL    | https://department-news-display.bwehner.workers.dev/                                                                         |
+| Staging URL       | https://department-news-display-staging.bwehner.workers.dev/                                                                 |
+| Worker File       | src/index.js                                                                                                                 |
+| Secrets Required  | CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID (GitHub); GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY, GOOGLE_SHEET_ID (Cloudflare dashboard) |
+
+## 9.3 URL Parameters
+
+| **Parameter** | **Default** | **Options**                   | **Description**                                                        |
+|---------------|-------------|-------------------------------|------------------------------------------------------------------------|
+| station       | dept        | dept, 1, 2, 3, 4, 5, 6, 7, 8 | Which tab to display. dept = department-wide news; 1–8 = station news. |
+| layout        | wide        | wide, split, tri, full        | Display column width.                                                  |
+
+Example URLs:
+
+`https://department-news-display.bwehner.workers.dev/?station=dept` — department-wide news
+
+`https://department-news-display.bwehner.workers.dev/?station=7` — Station 7 news
+
+## 9.4 How It Works
+
+1. The Worker authenticates with Google using the shared service account and fetches the relevant sheet tab from the Google Sheet.
+
+2. Rows are processed: expired items are hidden, recurring items are expanded based on their interval and stop-after date, and items are sorted with new items first (sorted by posted date descending), then regular items (sorted by posted date descending).
+
+3. Items posted within NEW_ITEM_DAYS of today are highlighted with a "NEW" badge and a distinct card background.
+
+4. A self-contained HTML page is returned with all active items displayed as cards. Each card shows the title, body text, and metadata (posted date, expires date, posted by). Line breaks entered in the sheet using Alt+Enter are preserved on the display.
+
+5. If content overflows the visible area, a CSS keyframe animation automatically scrolls the content upward and loops continuously, allowing all items to be seen within the display cycle.
+
+## 9.5 Google Sheet Structure
+
+The Google Sheet contains one tab per feed: a "Department News" tab for department-wide news and tabs named "FS#1" through "FS#8" for each station. Both the sheet must be shared with the service account email (Viewer permission).
+
+## 9.6 Google Sheet Column Reference
+
+| **Column Header** | **Required?** | **Notes**                                                                                                                   |
+|-------------------|---------------|-----------------------------------------------------------------------------------------------------------------------------|
+| Title             | Yes           | Headline shown at the top of the card in bold                                                                               |
+| Content           | Yes           | Body text of the news item. Alt+Enter line breaks are preserved on display.                                                 |
+| Posted            | Yes           | Date/time the item was posted. Format: M/D/YY H:MM AM/PM. Used for sorting and "new" badge calculation.                    |
+| Expires           | No            | Date/time the item stops showing. Format: M/D/YY H:MM AM/PM. Leave blank for items that do not expire.                     |
+| Posted By         | No            | Name of the person who posted the item. Shown in card metadata.                                                             |
+| Recurring         | No            | Interval in days for recurring items (e.g. 7 for weekly). Leave blank for non-recurring items.                              |
+| Stop After        | No            | Date after which a recurring item no longer repeats. Format: M/D/YY.                                                        |
+
+## 9.7 Configuration
+
+| **Constant**              | **Description**                                                                                                            |
+|---------------------------|----------------------------------------------------------------------------------------------------------------------------|
+| NEW_ITEM_DAYS             | Number of days after posting that an item shows the NEW badge (default: 3).                                                |
+| DISPLAY_DURATION_SECONDS  | How long the display shows this Worker before cycling. Used to calculate scroll speed (default: 20).                       |
+| SCROLL_PAUSE_SECONDS      | Seconds to pause at the top and bottom of the scroll animation before reversing (default: 3).                              |
+| MIN_SCROLL_SPEED_PX_PER_SEC | Minimum scroll speed in pixels per second (default: 20).                                                                 |
+| MAX_SCROLL_SPEED_PX_PER_SEC | Maximum scroll speed in pixels per second (default: 120).                                                                |
+| CARD_BODY_LINE_HEIGHT     | Line height for card body text (default: 1.25). Adjust if line spacing appears too tight or too loose on hardware.         |
+| CARD_META_LINE_HEIGHT     | Line height for card metadata (default: 1.6).                                                                              |
+| DELETE_EXPIRED_AFTER_DAYS | Days after expiry before expired non-recurring rows are automatically deleted by the scheduled cron job. -1 disables.      |
+
+## 9.8 Adding News Items
+
+1. Open the Google Sheet and navigate to the appropriate tab (Department News or the relevant station tab).
+
+2. Add a new row with at minimum Title, Content, and Posted filled in.
+
+3. Fill in Expires if the item should stop showing after a specific date/time. Leave blank for permanent items.
+
+4. The Worker fetches sheet data on every request (with a short cache). New items appear on displays within 5 minutes.
+
+## 9.9 Recurring Items
+
+To create a recurring item (e.g. a weekly reminder), fill in the Recurring column with the interval in days (e.g. 7 for weekly) and optionally set a Stop After date. The item will repeat from its original Posted date at the configured interval until the Stop After date is reached.
+
+# 10. Project: Weather Display
+
+## 10.1 Purpose & Problem Solved
+
+Station displays needed a dedicated full-screen weather display showing current conditions, a 3-day forecast, an animated radar map, and weather alerts in a single view. The Weather Display Worker fetches data from the NWS public API, AirNow API, and RainViewer API and renders a responsive HTML page tailored to each display layout. No manual updates are required — all data refreshes automatically.
+
+## 10.2 Repository & Deployment
+
+| **Item**          | **Value**                                                                                                                                           |
+|-------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| GitHub Repository | github.com/wehnerb/weather-display                                                                                                                  |
+| Production URL    | https://weather-display.bwehner.workers.dev/                                                                                                        |
+| Staging URL       | https://weather-display-staging.bwehner.workers.dev/                                                                                                |
+| Worker File       | src/index.js                                                                                                                                        |
+| Secrets Required  | CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID (GitHub); AIRNOW_API_KEY (Cloudflare dashboard)                                                         |
+
+## 10.3 URL Parameters
+
+| **Parameter** | **Default** | **Options**                  | **Description**                                                                                  |
+|---------------|-------------|------------------------------|--------------------------------------------------------------------------------------------------|
+| layout        | wide        | wide, full, split, tri       | Display size. wide and full show the full display (radar + conditions + hourly strip). split and tri show either radar or conditions only, controlled by the view parameter. |
+| view          | radar       | radar, conditions            | For split and tri layouts only. Selects which half of the display to render.                     |
+| bg            | (none)      | dark                         | Testing parameter. Adds a dark background for browser-based testing. Not for production use.     |
+
+## 10.4 How It Works
+
+1. The Worker fetches data in parallel from multiple sources: NWS current conditions, NWS daily forecast, NWS hourly forecast, NWS active alerts for Cass County (NDZ039), AirNow AQI for Fargo (zip 58102), and RainViewer radar frame metadata.
+
+2. Each data source fails gracefully — if any upstream source is unavailable, the relevant section is omitted rather than returning an error page.
+
+3. Weather data is edge-cached at Cloudflare to limit upstream API calls across all stations.
+
+4. A self-contained HTML page is rendered for the requested layout and returned to the display.
+
+## 10.5 Display Sections
+
+**Current Conditions:** Large temperature display with apparent temperature, AQI badge, condition icon and text. Wind, humidity, dew point, pressure, and visibility stats. Today's high/low temperature and sunrise/sunset times.
+
+**3-Day Forecast:** Three forecast rows showing day name, condition icon, short forecast text, wind speed, precipitation probability, and high/low temperatures. Future weather alerts that overlap a forecast day appear as color-coded badges in that day's row.
+
+**12-Hour Strip:** A horizontal strip at the bottom of the wide/full layouts showing 12 hourly slots. Each slot displays the time label, condition icon, temperature, and precipitation probability.
+
+**Radar:** An animated radar map using Leaflet.js with the CartoDB Dark Matter base layer and RainViewer radar tile overlays. The animation uses a double-buffer approach (two alternating tile layers) for smooth frame transitions. The radar shows the most recent 18 frames in a loop with a hold on the final (most recent) frame.
+
+**Alert Banners:** Active NWS weather alerts appear as full-width colored banners at the top of the display. Banner colors: red = Warning, orange = Watch, yellow = Advisory. Up to MAX_DISPLAY_ALERTS banners are shown simultaneously; the most severe alerts take priority. Future alerts (not yet active) fill any remaining banner slots with a "begins Day H:MM AM" label. When alerts are present, all content below scales proportionally to fit the remaining vertical space.
+
+## 10.6 Configuration
+
+| **Constant**          | **Description**                                                                                                         |
+|-----------------------|-------------------------------------------------------------------------------------------------------------------------|
+| LOCATION_LAT          | Latitude of the display location (Fargo: 46.8772).                                                                     |
+| LOCATION_LON          | Longitude of the display location (Fargo: -96.7898).                                                                   |
+| NWS_OFFICE            | NWS forecast office identifier (FGF for Fargo).                                                                        |
+| NWS_GRID_X / Y        | NWS grid point coordinates (65, 57 for Fargo).                                                                         |
+| NWS_ALERT_ZONE        | NWS alert zone identifier (NDZ039 = Cass County ND).                                                                   |
+| RADAR_ZOOM            | Leaflet map zoom level for the radar display (default: 7).                                                              |
+| RADAR_FRAMES_COUNT    | Number of historical radar frames to animate (default: 18).                                                             |
+| RADAR_FRAME_MS        | Milliseconds between radar animation frames (default: 200).                                                             |
+| RADAR_HOLD_MS         | Milliseconds to hold on the final (most recent) frame before looping (default: 2000).                                   |
+| RADAR_INIT_DELAY_MS   | Milliseconds to wait after page load before initializing the Leaflet map. Allows Pi hardware layout to complete first.  |
+| RADAR_OPACITY         | Opacity of the radar overlay tiles (0.0–1.0).                                                                           |
+| MAX_DISPLAY_ALERTS    | Maximum number of alert banners displayed simultaneously (default: 3).                                                  |
+| ALERT_BANNER_HEIGHT_PX| Vertical pixels reserved per active alert banner for proportional content scaling (default: 52).                        |
+| HOURLY_COUNT          | Number of hourly slots shown in the bottom strip (default: 12).                                                         |
+
+## 10.7 AirNow API Key
+
+The AIRNOW_API_KEY secret must be set in the Cloudflare dashboard. Register for a free key at docs.airnowapi.org. If the key is missing or the AirNow API is unavailable, the AQI badge is silently omitted.
+
+## 10.8 NWS Configuration
+
+NWS_USER_AGENT is set as a plain [vars] entry in wrangler.toml and identifies the Worker to the NWS API as required by NWS terms of service.
+
+# 11. Shared Utilities
+
+## 11.1 Overview
+
+The ffd-station-display-utils repository contains shared design tokens, helper functions, and utility modules used by all 8 Worker projects. All Workers sync from this repository automatically via a GitHub Actions pipeline whenever the shared utilities are updated.
+
+## 11.2 Repository
+
+| **Item**          | **Value**                                            |
+|-------------------|------------------------------------------------------|
+| GitHub Repository | github.com/wehnerb/ffd-station-display-utils         |
+| Worker File       | N/A — this is a shared library, not a Worker         |
+| Branches          | main only (no staging branch needed)                 |
+
+## 11.3 Shared Modules
+
+| **File**           | **Purpose**                                                                               |
+|--------------------|-------------------------------------------------------------------------------------------|
+| colors.js          | Design tokens: background colors, font stacks, text opacity hierarchy, border levels, card elevation levels, accent color |
+| alert-colors.js    | Alert color tokens: warning/watch/advisory backgrounds, borders, and text colors          |
+| layouts.js         | Layout dimensions for wide, full, split, and tri display sizes                           |
+| fetch-helpers.js   | fetchWithTimeout helper with AbortController for all upstream API fetches                |
+| html.js            | escapeHtml and sanitizeParam helper functions for safe HTML output                       |
+| google-auth.js     | getAccessToken function for Google service account JWT authentication                    |
+| rotation.js        | getTodayString, getBlockIndex, getSecondsUntilNextRotation helpers for 3-day rotation     |
+
+## 11.4 Auto-Sync Pipeline
+
+When a change is merged to main in ffd-station-display-utils, a GitHub Actions workflow (notify-workers.yml) automatically opens a pull request in each of the 8 Worker repositories to pull in the updated shared files. These PRs target the staging branch of each Worker. Each Worker's sync-utils.yml workflow merges the PR to staging and then auto-merges staging to main.
+
+To trigger the pipeline: update VERSION in ffd-station-display-utils, commit to main, and the pipeline runs automatically.
+
+## 11.5 Design Token Summary
+
+| **Token**        | **Value**                        | **Usage**                                                  |
+|------------------|----------------------------------|------------------------------------------------------------|
+| DARK_BG_COLOR    | #111111                          | Solid background for full layout and ?bg=dark testing      |
+| FONT_STACK       | "Segoe UI", Arial, Helvetica     | Primary sans-serif font stack (web fonts avoided on Pi)    |
+| FONT_STACK_SERIF | Georgia, "Times New Roman"       | Serif stack for message body text                          |
+| ACCENT_COLOR     | #FF0000                          | FFD red — used only for functional elements                |
+| TEXT_PRIMARY     | rgba(255,255,255,0.92)           | Main body text, values, titles                             |
+| TEXT_SECONDARY   | rgba(255,255,255,0.68)           | Labels, metadata, subdued content                          |
+| TEXT_TERTIARY    | rgba(255,255,255,0.50)           | Timestamps, hints, least-important content                 |
+| TEXT_SUPPORTING  | rgba(255,255,255,0.75)           | Supporting content between SECONDARY and PRIMARY           |
+| BORDER_SUBTLE    | rgba(255,255,255,0.10)           | Standard card borders, dividers                            |
+| BORDER_STRONG    | rgba(255,255,255,0.18)           | Emphasized separators, today-panel borders                 |
+| CARD_RECESSED    | rgba(255,255,255,0.04)           | Subtly inset cells within a card                           |
+| CARD_BASE        | rgba(255,255,255,0.07)           | Standard card surface                                      |
+| CARD_ELEVATED    | rgba(255,255,255,0.11)           | Slightly raised blocks within a card                       |
+| CARD_HEADER      | rgba(255,255,255,0.16)           | Today/primary panel header — highest card-level elevation  |
+
+| **Design Rule**                                                                                                                                                     |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ACCENT_COLOR is used functionally only — never as a decorative top border or purely ornamental element. Only font weights 400 and 700 are portable across the Pi font fallback chain. Do not use 300, 500, or 600. |
+
+# 12. Deployment & Maintenance Workflow
+
+## 12.1 Branch Strategy
+
+Each Worker repository uses two branches. All changes must go through staging before being merged to main.
 
 | **Branch** | **Deploys To**                         | **Purpose**                                          |
 |------------|----------------------------------------|------------------------------------------------------|
 | staging    | \[worker\]-staging.bwehner.workers.dev | Testing and validation of changes before production  |
 | main       | \[worker\].bwehner.workers.dev         | Live production environment used by station displays |
 
-## 9.2 Making a Code Change
+The ffd-station-display-utils repository uses only a main branch — changes there trigger the auto-sync pipeline to all 8 Worker repositories.
 
-Follow these steps in order for all code changes. Do not skip directly to main without completing the staging test steps.
+## 12.2 Making a Code Change
 
-1.  Switch to the staging branch in the GitHub repository.
+Follow these steps in order for all code changes:
+
+1.  Create a new branch from staging in the GitHub repository (or edit directly in staging for simple one-line changes).
 
 2.  Edit the relevant file(s) using the GitHub browser editor.
 
-3.  Commit directly to the staging branch.
+3.  Commit to the new branch and open a pull request targeting staging.
 
 4.  GitHub Actions will automatically deploy the change to the staging Worker within about 30–45 seconds.
 
 5.  Test the staging Worker URL in a browser to confirm the change works as expected.
 
-6.  For display-dependent changes (image layouts, timing, chart rendering, or any change that affects how content appears on screen), also temporarily update the endpoint URL on a single station display to the staging Worker URL. Confirm the change works correctly on actual display hardware before proceeding.
+6.  For display-dependent changes, temporarily update the endpoint URL on a single station display to the staging Worker URL. Confirm the change works correctly on actual display hardware before proceeding.
 
-7.  Once both browser and display tests pass, create a Pull Request from staging → main in GitHub, or merge directly via the branch interface.
+7.  Once both browser and display tests pass, merge the pull request to staging, then merge staging to main.
 
 8.  GitHub Actions will automatically deploy to the production Worker within about 30–45 seconds.
 
-9.  Verify the production Worker URL is functioning correctly. If you temporarily changed a display to the staging URL for testing, return it to the production URL now.
+9.  Verify the production Worker URL is functioning correctly. Return any display temporarily set to staging to the production URL.
 
 ### Rolling Back a Change
 
-If a change causes problems and needs to be undone:
+- **Simple rollback:** Edit the file in the staging branch in GitHub to restore the previous value.
+- **Commit history rollback:** Go to the branch in GitHub, click the commit history, find the target commit, and use Revert.
+- **Production rollback:** Go to the main branch commit history, find the last known-good commit, and use GitHub's Revert feature. This triggers a redeployment automatically.
+- **Re-sync branches after rollback:** After reverting main, merge main back into staging immediately.
 
-- Simple rollback (staging only): If the change was small and easy to reverse, open the file in the staging branch in GitHub, edit it to restore the previous value, and commit.
+## 12.3 Important Deployment Notes
 
-- Commit history rollback (staging): For more complex changes, go to the staging branch in GitHub, click the commit history, find the target commit, click the "\<\>" (Browse repository at this point) button, and use Revert.
-
-- Production rollback: Go to the main branch commit history in GitHub, find the last known-good commit, and use GitHub's Revert feature to create a new revert commit. This triggers a redeployment automatically.
-
-- Re-sync branches after rollback: After reverting main, merge main back into staging immediately to keep both branches in sync.
-
-| **Important**                                                                                                                                                                                              |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Important**                                                                                                                                                              |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Never deploy directly to main without first testing in staging. If a deployment fails, the previous version remains live — Cloudflare does not replace the running Worker until a new deployment succeeds. |
 
 | **Important — X-Frame-Options Header**                                                                                                                                                                                                                                                                                                                                                                                                               |
 |------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| The X-Frame-Options: SAMEORIGIN header must never be added to any of these Workers. All Workers are loaded as full-screen iframes by the display system, and this header causes the browser to block the page from rendering entirely, producing an immediate white error screen. This was discovered during security hardening in March 2026. The Referrer-Policy and X-Content-Type-Options headers are safe and are present in all three Workers. |
+| The X-Frame-Options: SAMEORIGIN header must never be added to any of these Workers. All Workers are loaded as full-screen iframes by the display system, and this header causes the browser to block the page from rendering entirely, producing an immediate white error screen. |
 
-## 9.3 Monitoring Deployments
+## 12.4 Monitoring Deployments
 
-Every deployment is logged in the Actions tab of the GitHub repository. Each workflow run shows whether it succeeded or failed and provides a full log of each step. If a deployment fails, the previous version remains live — Cloudflare does not replace the running Worker until a new deployment succeeds.
+Every deployment is logged in the Actions tab of the GitHub repository. All 8 Workers are monitored by UptimeRobot via their /healthz endpoints. Alerts are sent by email when any Worker goes down or recovers.
 
-# 10. IT Support Reference
+# 13. IT Support Reference
 
-## 10.1 Overview for IT Staff
+## 13.1 Overview for IT Staff
 
 This system runs entirely on external cloud services and does not require any on-premises server infrastructure, VPNs, or internal network changes. The display screens require only outbound internet access to reach the Cloudflare Worker URLs. There is no software to install, no servers to patch, and no internal ports to open.
 
 IT involvement would typically only be needed for:
 
 - Network connectivity issues at the station that prevent displays from reaching external URLs.
-
 - Display hardware or operating system issues at the screen level.
-
 - Account access issues if the department member managing this system is unavailable.
 
-## 10.2 Network Requirements
+## 13.2 Network Requirements
 
 The display screens must have outbound internet access on port 443 (HTTPS) to the following domains:
 
-- \*.workers.dev — Cloudflare Worker endpoints (all six projects)
+- \*.workers.dev — Cloudflare Worker endpoints (all 8 Worker projects)
+- docs.google.com — Google Slides embeds
+- www.googleapis.com — Google Drive API (photo and image requests proxied through the Worker)
+- www.dot.nd.gov — ND DOT traffic camera images (fetched directly by the display browser)
+- usgs-nims-images.s3.amazonaws.com — USGS river camera images (fetched directly by the display browser)
+- water.noaa.gov — NOAA river gauge images (fetched directly by the display browser)
+- cdnjs.cloudflare.com — Leaflet.js CSS and JavaScript for the weather display radar map
+- \*.basemaps.cartocdn.com — CartoDB Dark Matter base map tiles for the radar display
+- tilecache.rainviewer.com — RainViewer radar overlay tiles
 
-- docs.google.com — Google Slides embeds (the display browser follows a redirect to load the presentation directly)
+Note: api.weather.gov, api.rainviewer.com, and www.airnowapi.org are fetched by the Cloudflare Worker on its own network — not by the display screens directly.
 
-- www.dot.nd.gov — ND DOT traffic camera images (fetched directly by the display browser via the station-image-proxy HTML page)
+## 13.3 Troubleshooting
 
-- usgs-nims-images.s3.amazonaws.com — USGS river camera images (fetched directly by the display browser via the station-image-proxy HTML page)
+| **Symptom**                                       | **Likely Cause**                                       | **Resolution**                                                                                                                                                                                          |
+|---------------------------------------------------|--------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Display shows blank/white screen                  | Network connectivity or display hardware issue         | Check internet connectivity at the screen. Verify the Worker URL loads in a browser on the same network.                                                                                                |
+| Images show INVALID IMAGE KEY error               | Invalid or missing image key in the URL                | Check the img parameter in the display URL against the MAPPING list in worker_code.js (Section 3.9).                                                                                                    |
+| Images show IMAGE UNAVAILABLE                     | Source camera or data feed is offline                  | Check the source URL directly. This is typically a third-party outage outside department control.                                                                                                       |
+| River gauge shows error page                      | NOAA API temporarily unavailable                       | The page retries automatically every 60 seconds. Check api.water.noaa.gov directly if persistent.                                                                                                       |
+| Slides cycling at wrong speed                     | Slide count API call failing or secrets missing        | Check Cloudflare Worker logs. Verify GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY are present in the Cloudflare dashboard for slide-timing-proxy.                                                |
+| Calendar shows no weather data                    | NWS API temporarily unavailable                        | The calendar renders without weather rather than showing an error. Typically self-resolves.                                                                                                             |
+| Probationary firefighter photo does not load      | Drive permissions or file not found                    | Verify the Drive folder is shared with the service account email. Verify the Photo column filename matches the Drive filename. Check Cloudflare Worker logs for errors.                                 |
+| Probationary firefighter display shows no content | No firefighters hired within the past 365 days         | Check that hire dates are in YYYY-MM-DD format. Verify the sheet is shared with the service account email.                                                                                              |
+| Department news shows "No current news"           | No active items in the sheet tab for this station      | Check the relevant tab in the Google Sheet. Verify Posted and Expires dates are correct and items are not expired.                                                                                      |
+| Weather radar map is white or partially loaded    | Leaflet map initialization timing issue on Pi hardware | This is a known intermittent issue. The display refreshes automatically and typically self-resolves on the next cycle.                                                                                  |
+| Weather display shows no AQI badge               | AIRNOW_API_KEY missing or AirNow API unavailable       | Check that AIRNOW_API_KEY is set in the Cloudflare dashboard for weather-display. The badge is silently omitted when unavailable.                                                                        |
+| UptimeRobot shows a Worker as down               | Worker returning non-200 status or timing out          | Load the /healthz URL directly in a browser. If it returns "status: healthy", the alert may have been a transient blip. If it returns "status: degraded", check Cloudflare Worker logs for details.     |
 
-- water.noaa.gov — NOAA river gauge images (fetched directly by the display browser via the station-image-proxy HTML page)
+## 13.4 Uptime Monitoring
 
-- api.weather.gov — NWS weather data for the calendar-display Worker (fetched by the Worker on Cloudflare's network, not by the display screens directly)
+All 8 Workers are monitored via UptimeRobot at 5-minute intervals. Each monitor checks the Worker's /healthz endpoint and alerts by email when the Worker is down or recovers.
 
-Note: The station-image-proxy Worker previously used images.weserv.nl to resize images server-side. That service has been removed. The Worker now returns an HTML page that instructs the display browser to fetch source images directly. As a result, the display screens must be able to reach the image source domains listed above.
+| **Monitor Name**                       | **URL**                                                                     |
+|----------------------------------------|-----------------------------------------------------------------------------|
+| FFD Station Image Proxy                | https://station-image-proxy.bwehner.workers.dev/healthz                     |
+| FFD Slide Timing Proxy                 | https://slide-timing-proxy.bwehner.workers.dev/healthz                      |
+| FFD River Level Display                | https://river-level-display.bwehner.workers.dev/healthz                     |
+| FFD Daily Message Display              | https://daily-message-display.bwehner.workers.dev/healthz                   |
+| FFD Calendar Display                   | https://calendar-display.bwehner.workers.dev/healthz                        |
+| FFD Department News Display            | https://department-news-display.bwehner.workers.dev/healthz                 |
+| FFD Probationary Firefighter Display   | https://probationary-firefighter-display.bwehner.workers.dev/healthz        |
+| FFD Weather Display                    | https://weather-display.bwehner.workers.dev/healthz                         |
 
-## 10.3 Troubleshooting
+## 13.5 Service Limits & Monitoring
 
-| **Symptom**                                       | **Likely Cause**                                       | **Resolution**                                                                                                                                                                                                          |
-|---------------------------------------------------|--------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Display shows blank/white screen                  | Network connectivity or display hardware issue         | Check internet connectivity at the screen. Verify the Worker URL loads in a browser on the same network.                                                                                                                |
-| Images show INVALID IMAGE KEY error               | Invalid or missing image key in the URL                | Check the img parameter in the display URL against the MAPPING list in worker_code.js (Section 3.9). MISSING IMAGE KEY means the ?img= parameter was omitted entirely. INVALID IMAGE KEY means the key name does not exist in MAPPING. |
-| Images show IMAGE UNAVAILABLE                     | Source camera or data feed is offline                  | Check the source URL directly. This is typically a third-party outage outside department control.                                                                                                                       |
-| River gauge shows error page                      | NOAA API temporarily unavailable                       | The page retries automatically every 60 seconds. Typically self-resolves. Check api.water.noaa.gov directly if persistent.                                                                                              |
-| River gauge data is stale                         | Cloudflare cache not yet expired                       | Data refreshes every 15 minutes. Wait for the next cache cycle or check the NOAA website directly.                                                                                                                      |
-| Slides cycling at wrong speed                     | Slide count API call failing or secrets missing        | Check Cloudflare Worker logs (Workers & Pages → \[Worker Name\] → Logs). Verify GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY are present under Settings → Variables and Secrets.                                 |
-| GitHub Actions deployment fails                   | Invalid secret or API token expiry                     | Check the Actions log for error details. Re-create the failing secret in GitHub and re-run the workflow.                                                                                                                |
-| Calendar shows weather alerts with wrong end time | NWS updated the alert expiry after the page was cached | The page cache TTL is 15 minutes (CACHE_SECONDS). The alert end time will correct itself within 15 minutes. The Worker uses the ends field (actual event end) rather than expires (product expiry) for displayed times. |
-| Calendar shows no weather data                    | NWS API temporarily unavailable or rate-limited        | The calendar renders without weather rather than showing an error. Typically self-resolves. Check api.weather.gov directly if persistent.                                                                               |
-| Probationary firefighter display shows no content | No firefighters hired within the past 365 days, or sheet/Drive not shared with service account | Check that the Google Sheet and Drive folder are shared with the service account email. Verify hire dates are in YYYY-MM-DD format. Check Cloudflare Worker logs for API errors. |
+| **Service**                              | **Free Tier Limit**                   | **Est. Daily Usage (8 stations)**                                              | **Where to Check**                                     |
+|------------------------------------------|---------------------------------------|--------------------------------------------------------------------------------|--------------------------------------------------------|
+| Cloudflare Workers (combined total)      | 100,000 req/day                       | ~20,000–30,000 req/day (varies by layout and cache hit rate)                   | dash.cloudflare.com → Workers & Pages → Overview       |
+| Google Slides API                        | 300 req/minute                        | At most 1 request per hour per cache version                                   | console.cloud.google.com → APIs & Services → Dashboard |
+| Google Sheets API                        | 300 req/minute per project            | Low — edge-cached to limit calls                                               | console.cloud.google.com → APIs & Services → Dashboard |
+| Google Drive API                         | 1,000 req/100 seconds                 | Low — one listing call per Worker request, results edge-cached                 | console.cloud.google.com → APIs & Services → Dashboard |
+| NOAA NWPS / NWS APIs                     | No documented hard limit              | Low — all responses edge-cached for 15–60 minutes                              | Monitor via displays on screens                        |
+| AirNow API                               | 500 req/hour                          | ~8–16 req/hour across 8 stations — well within limit                           | docs.airnowapi.org → My Account                        |
+| RainViewer API                           | No documented hard limit              | Low — metadata fetched per Worker request; tiles fetched by display browser    | Monitor via weather display on screens                 |
+| UptimeRobot                              | 50 monitors, 5-min interval (free)    | 8 monitors active — well within limit                                          | uptimerobot.com → Dashboard                            |
 
-
-## 10.4 Service Limits & Monitoring
-
-All services operate within their free tiers. The current usage is well within the limits below. If displays begin showing errors consistently across all screens simultaneously, checking these limits is a useful diagnostic step.
-
-| **Service**                              | **Free Tier Limit**                                                      | **Est. Daily Usage (8 stations)**                                                                                               | **Where to Check**                                     |
-|------------------------------------------|--------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
-| Cloudflare Workers (image proxy)         | 100,000 req/day                                                          | ~15,500–22,000 req/day                                                                                                          | dash.cloudflare.com → Workers & Pages → Overview       |
-| Cloudflare Workers (slide timing)        | 100,000 req/day                                                          | ~2,300–3,300 req/day                                                                                                            | dash.cloudflare.com → Workers & Pages → Overview       |
-| Cloudflare Workers (river level display) | 100,000 req/day                                                          | ~700–1,000 req/day (15-min cache reduces Worker invocations significantly)                                                      | dash.cloudflare.com → Workers & Pages → Overview       |
-| Cloudflare Workers (combined total)      | 100,000 req/day                                                          | ~18,500–26,300 req/day (~19–26% of limit, not including daily-message-display, calendar-display, or probationary-firefighter-display which each add ~8–16 req/day) | dash.cloudflare.com → Workers & Pages → Overview       |
-| Google Slides API                        | 300 req/minute                                                           | At most 1 request per hour per cache version — well within limit due to Workers Cache API slide count caching                   | console.cloud.google.com → APIs & Services → Dashboard |
-| NOAA NWPS API                            | No documented hard limit; public API                                     | Low — all responses cached for 15 min by Cloudflare                                                                             | Monitor via gauge display on screens                   |
-
-| **Usage Estimates**                                                                                                                                                                                                                                                                                                                                  |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| The figures above are worst-case estimates based on all 8 stations online with a 3.5–5 minute display cycle and no shared URL caching between stations. Actual usage is likely lower because Cloudflare edge caching serves repeated requests for the same URL without invoking the Worker, reducing both Worker invocations and upstream API calls. |
-
-## 10.5 Contact & Escalation
+## 13.6 Contact & Escalation
 
 For issues with application code, configuration, or Cloudflare/GitHub accounts, contact Brandon Wehner.
 
-For issues with display screen hardware or operating system, contact the shift personnel responsible for the station alerting and communications system. They will serve as the initial point of contact for department personnel and will escalate to the display vendor as needed.
+For issues with display screen hardware or operating system, contact the shift personnel responsible for the station alerting and communications system.
 
 For local network connectivity issues preventing displays from reaching external URLs, contact the City of Fargo Information Services (IS) Department.
 
-# 11. Planned Enhancements
+# 14. Planned Enhancements
 
-The following enhancements are under consideration for future development. Priority ratings reflect potential operational value relative to implementation effort.
-
-## 11.1 Incident & Performance Data (First Due)
-
-These enhancements depend on API access to First Due. The availability, structure, and rate limits of that API have not yet been fully evaluated.
+## 14.1 Incident & Performance Data (First Due)
 
 | **Enhancement**                    | **Description**                                                                                                                                   | **Priority** | **Status**          |
 |------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|--------------|---------------------|
-| Turnout Time Display               | Graphical display showing the percentage of calls where the crew met the department's turnout time benchmark as defined by the Standard of Cover. | High         | Under Consideration |
-| Turnout Time Trending              | Graphical representation showing turnout time trends over time, making performance direction visible at a glance.                                 | High         | Under Consideration |
-| Incident Type by Final Disposition | Graphical breakdown of incident types using final report disposition rather than dispatched type.                                                 | High         | Under Consideration |
+| Turnout Time Display               | Graphical display showing the percentage of calls where the crew met the department's turnout time benchmark.                                    | High         | Under Consideration |
+| Turnout Time Trending              | Graphical representation showing turnout time trends over time.                                                                                  | High         | Under Consideration |
+| Incident Type by Final Disposition | Graphical breakdown of incident types using final report disposition.                                                                            | High         | Under Consideration |
 | Time-of-Day Call Distribution      | Chart showing when calls are most frequent throughout the day.                                                                                    | Medium       | Under Consideration |
 | Year-over-Year Call Volume         | Comparison of call volume across years to identify growth trends.                                                                                 | Medium       | Under Consideration |
 | Geographic Call Clustering         | Heat map or cluster map showing where calls are concentrated within the response area.                                                            | Low          | Under Consideration |
 
-## 11.2 Display Content Enhancements
+## 14.2 Display Content Enhancements
 
-| **Enhancement**                           | **Description**                                                                                                                                                                                                                          | **Priority** | **Status**          |
-|-------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------|---------------------|
-| Daily Safety Message Display              | Daily messages, quotes, and images displayed on station screens, rotating every 3 days to ensure all shifts see each message.                                                                                                            | Medium       | Complete            |
-| Calendar Display                          | Station calendar showing FFD Calendar public folder in a split or strip layout. Exported from Outlook automatically at login via VBA macro, synced to Nextcloud via the Nextcloud desktop app, fetched by the Worker via WebDAV.         | Medium       | Complete            |
-| NOAA Weather Alerts                       | Active and upcoming NWS weather alerts displayed on the calendar screen with severity-colored banners (active) and column header badges (upcoming). Daily forecast, hourly strip, and SVG weather icons also added to wide/full layouts. | Medium       | Complete            |
-| Probationary Firefighter Display          | Rotating spotlight displaying one probationary firefighter at a time with photo and bio sourced from Google Sheets and Google Drive. Cycles through all active new hires on the same 3-day rotation as the Daily Message Display. Firefighters are shown for one year from hire date and drop off automatically. | Medium       | Complete            |
-| Birthday & Department Anniversary Display | Display birthdays and department hire anniversaries for the current week or month.                                                                                                                                                       | Low          | Under Consideration |
-| Retirement Countdown                      | Countdown display for upcoming retirements (with member permission).                                                                                                                                                                     | Low          | Under Consideration |
-| Additional River Gauges                   | Add additional NOAA gauge locations to the river-level-display GAUGES registry (e.g., Moorhead, MN — gauge MHDN8).                                                                                                                       | Low          | Under Consideration |
+| **Enhancement**                           | **Description**                                                                                                                                                                          | **Priority** | **Status**          |
+|-------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------|---------------------|
+| Daily Safety Message Display              | Daily messages, quotes, and images displayed on station screens, rotating every 3 days.                                                                                                  | Medium       | Complete            |
+| Calendar Display                          | Station calendar with weather data. Exported from Outlook automatically via VBA macro, synced to Nextcloud, fetched by the Worker via WebDAV.                                            | Medium       | Complete            |
+| NOAA Weather Alerts                       | Active and upcoming NWS weather alerts on calendar and weather displays with severity-colored banners and future alert badges.                                                           | Medium       | Complete            |
+| Probationary Firefighter Display          | Rotating spotlight with photo and bio sourced from Google Sheets and Drive. Cycles through all active new hires on a 3-day rotation. Drops off automatically after 365 days from hire.  | Medium       | Complete            |
+| Department News Display                   | Card-based department-wide and station-specific news feed sourced from Google Sheets. Supports recurring items, new item highlighting, and auto-scrolling for overflow content.          | Medium       | Complete            |
+| Weather Display                           | Full weather display with animated RainViewer radar, NWS current conditions, 3-day forecast, 12-hour strip, AirNow AQI, and active/future alert banners.                                | Medium       | Complete            |
+| Birthday & Department Anniversary Display | Display birthdays and department hire anniversaries for the current week or month.                                                                                                       | Low          | Under Consideration |
+| Retirement Countdown                      | Countdown display for upcoming retirements (with member permission).                                                                                                                     | Low          | Under Consideration |
+| Additional River Gauges                   | Add additional NOAA gauge locations to the river-level-display GAUGES registry (e.g., Moorhead, MN — gauge MHDN8).                                                                       | Low          | Under Consideration |
