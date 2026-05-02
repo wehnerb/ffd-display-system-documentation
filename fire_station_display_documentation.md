@@ -890,8 +890,6 @@ Each Worker repository uses two branches. All changes must go through staging be
 | staging    | \[worker\]-staging.bwehner.workers.dev | Testing and validation of changes before production  |
 | main       | \[worker\].bwehner.workers.dev         | Live production environment used by station displays |
 
-The ffd-station-display-utils repository uses only a main branch — changes there trigger the auto-sync pipeline to all 8 Worker repositories.
-
 ## 12.2 Making a Code Change
 
 Follow these steps in order for all code changes:
