@@ -249,7 +249,7 @@ All images are defined in the MAPPING object near the top of worker_code.js. To 
 
 1.  Open the staging branch of the station-image-proxy repository in GitHub.
 
-2.  Edit worker_code.js and locate the MAPPING object.
+2.  Edit index.js and locate the MAPPING object.
 
 3.  Add a new line inside the MAPPING object following the existing format:
 
