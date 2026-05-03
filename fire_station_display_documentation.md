@@ -657,7 +657,7 @@ The rotation is identical to daily-message-display in all respects: 3-day blocks
 
 1.  Add a new row to the Firefighters tab in the Google Sheet with at minimum Name and Hire Date filled in.
 
-2.  Upload the firefighter's photo to the Drive folder named firstnamelastname.jpg. Keep the file size under 2 MB for best performance. squoosh.app can be used to resize images.
+2.  Upload the firefighter's photo to the Drive folder named firstnamelastname.jpg. squoosh.app can be used to resize images, but larger images do load reliably.
 
 3.  Enter the filename in the Photo column of the sheet. Fill in any other available fields. Blank fields are automatically omitted from the display.
 
