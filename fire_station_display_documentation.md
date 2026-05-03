@@ -702,15 +702,15 @@ Example URLs:
 
 2. Rows are processed: expired items are hidden, recurring items are expanded based on their interval and stop-after date, and items are sorted with new items first (sorted by posted date descending), then regular items (sorted by posted date descending).
 
-3. Items posted within NEW_ITEM_DAYS of today are highlighted with a "NEW" badge and a distinct card background.
+3. Items posted within NEW_ITEM_THRESHOLD_DAYS of today are highlighted with a "NEW" badge and a distinct card background.
 
 4. A self-contained HTML page is returned with all active items displayed as cards. Each card shows the title, body text, and metadata (posted date, expires date, posted by). Line breaks entered in the sheet using Alt+Enter are preserved on the display.
 
-5. If content overflows the visible area, a CSS keyframe animation automatically scrolls the content upward and loops continuously, allowing all items to be seen within the display cycle.
+5. If content overflows the visible area, a ResizeObserver detects the rendered height after fonts are loaded and injects a CSS keyframe animation that scrolls content upward. The animation runs once — pausing at the top, scrolling through all content, then pausing at the bottom. Using ResizeObserver and document.fonts.ready ensures the measurement is taken after the Pi hardware has fully rendered the page, making it reliable under CPU load.
 
 ## 9.5 Google Sheet Structure
 
-The Google Sheet contains one tab per feed: a "Department News" tab for department-wide news and tabs named "FS#1" through "FS#8" for each station. Both the sheet must be shared with the service account email (Viewer permission).
+The Google Sheet contains one tab per feed: a "Department News" tab for department-wide news and tabs named "FS#1" through "FS#8" for each station. The sheet must be shared with the service account email (Viewer permission).
 
 ## 9.6 Google Sheet Column Reference
 
@@ -718,21 +718,21 @@ The Google Sheet contains one tab per feed: a "Department News" tab for departme
 |-------------------|---------------|-----------------------------------------------------------------------------------------------------------------------------|
 | Title             | Yes           | Headline shown at the top of the card in bold                                                                               |
 | Content           | Yes           | Body text of the news item. Alt+Enter line breaks are preserved on display.                                                 |
-| Posted            | Yes           | Date/time the item was posted. Format: M/D/YY H:MM AM/PM. Used for sorting and "new" badge calculation.                    |
-| Expires           | No            | Date/time the item stops showing. Format: M/D/YY H:MM AM/PM. Leave blank for items that do not expire.                     |
+| Posted            | Yes           | Date/time the item was posted. Format: M/D/YY H:MM AM/PM or YYYY-MM-DD. Used for sorting and "new" badge calculation.      |
+| Expires           | Yes           | Date/time the item stops showing. Format: M/D/YY H:MM AM/PM or YYYY-MM-DD. Items without a valid expiry are not shown.     |
 | Posted By         | No            | Name of the person who posted the item. Shown in card metadata.                                                             |
 | Recurring         | No            | Interval in days for recurring items (e.g. 7 for weekly). Leave blank for non-recurring items.                              |
-| Stop After        | No            | Date after which a recurring item no longer repeats. Format: M/D/YY.                                                        |
+| Stop After        | No            | Date after which a recurring item no longer repeats.                                                                        |
 
 ## 9.7 Configuration
 
 | **Constant**              | **Description**                                                                                                            |
 |---------------------------|----------------------------------------------------------------------------------------------------------------------------|
-| NEW_ITEM_DAYS             | Number of days after posting that an item shows the NEW badge (default: 3).                                                |
-| DISPLAY_DURATION_SECONDS  | How long the display shows this Worker before cycling. Used to calculate scroll speed (default: 20).                       |
-| SCROLL_PAUSE_SECONDS      | Seconds to pause at the top and bottom of the scroll animation before reversing (default: 3).                              |
+| NEW_ITEM_THRESHOLD_DAYS   | Number of days after posting that an item shows the NEW badge (default: 3).                                                |
+| DISPLAY_DURATION_SECONDS  | How long the display shows this Worker before cycling. Used to calculate scroll animation speed (default: 20).             |
+| SCROLL_PAUSE_SECONDS      | Seconds to pause at top and bottom of scroll animation (default: 5).                                                       |
 | MIN_SCROLL_SPEED_PX_PER_SEC | Minimum scroll speed in pixels per second (default: 20).                                                                 |
-| MAX_SCROLL_SPEED_PX_PER_SEC | Maximum scroll speed in pixels per second (default: 120).                                                                |
+| MAX_SCROLL_SPEED_PX_PER_SEC | Maximum scroll speed in pixels per second (default: 75).                                                                 |
 | CARD_BODY_LINE_HEIGHT     | Line height for card body text (default: 1.25). Adjust if line spacing appears too tight or too loose on hardware.         |
 | CARD_META_LINE_HEIGHT     | Line height for card metadata (default: 1.6).                                                                              |
 | DELETE_EXPIRED_AFTER_DAYS | Days after expiry before expired non-recurring rows are automatically deleted by the scheduled cron job. -1 disables.      |
@@ -741,9 +741,9 @@ The Google Sheet contains one tab per feed: a "Department News" tab for departme
 
 1. Open the Google Sheet and navigate to the appropriate tab (Department News or the relevant station tab).
 
-2. Add a new row with at minimum Title, Content, and Posted filled in.
+2. Add a new row with at minimum Title, Content, Posted, and Expires filled in.
 
-3. Fill in Expires if the item should stop showing after a specific date/time. Leave blank for permanent items.
+3. Fill in Expires with the date/time the item should stop showing.
 
 4. The Worker fetches sheet data on every request (with a short cache). New items appear on displays within 5 minutes.
 
