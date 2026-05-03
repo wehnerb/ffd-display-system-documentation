@@ -629,7 +629,7 @@ The rotation is identical to daily-message-display in all respects: 3-day blocks
 
 **Google Sheet:** Fire Station Display – Probationary Firefighter Information (tab: Firefighters). Both the sheet and the Drive folder must be shared with the service account email (Viewer permission).
 
-**Google Drive folder:** Fire Station Display – Probationary Firefighter Images. Photos are named firstnamelastname.jpg (e.g. makenziekotchman.jpg). The filename entered in the Photo column of the sheet must match the Drive filename (case-insensitive). Photos under 2 MB are recommended for best display performance — larger files will work but may cause a noticeable slight delay when the page first loads on hardware.
+**Google Drive folder:** Fire Station Display – Probationary Firefighter Images. Photos are named firstnamelastname.jpg (e.g. makenziekotchman.jpg). The filename entered in the Photo column of the sheet must match the Drive filename (case-insensitive).
 
 ## 8.7 Google Sheet Column Reference
 
