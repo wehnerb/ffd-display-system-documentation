@@ -698,15 +698,15 @@ Example URLs:
 
 ## 9.4 How It Works
 
-1. The Worker authenticates with Google using the shared service account and fetches the relevant sheet tab from the Google Sheet.
+1. The Worker authenticates with Google using the shared service account and fetches the relevant sheet tab from the Google Sheet. Sheet data is cached server-side for CACHE_SECONDS (default 5 minutes) to reduce API calls across display cycles.
 
-2. Rows are processed: expired items are hidden, recurring items are expanded based on their interval and stop-after date, and items are sorted with new items first (sorted by posted date descending), then regular items (sorted by posted date descending).
+2. Rows are processed: expired items are hidden, recurring items are expanded to their current active occurrence based on the recurrence interval and stop-after date, and items are sorted with new items first (sorted by posted date descending), then regular items (sorted by posted date descending).
 
-3. Items posted within NEW_ITEM_THRESHOLD_DAYS of today are highlighted with a "NEW" badge and a distinct card background.
+3. Items posted within NEW_ITEM_THRESHOLD_DAYS of today are highlighted with a "NEW" badge and a distinct lighter card background.
 
-4. A self-contained HTML page is returned with all active items displayed as cards. Each card shows the title, body text, and metadata (posted date, expires date, posted by). Line breaks entered in the sheet using Alt+Enter are preserved on the display.
+4. A self-contained HTML page is returned with all active items displayed as cards. Each card shows the title, body text, posted date, and expires date. Posted By is shown only when the field is not blank — it is omitted entirely from the card when empty. Line breaks entered in the sheet using Alt+Enter are preserved on the display. All dates are displayed in America/Chicago time.
 
-5. If content overflows the visible area, a ResizeObserver detects the rendered height after fonts are loaded and injects a CSS keyframe animation that scrolls content upward. The animation runs once — pausing at the top, scrolling through all content, then pausing at the bottom. Using ResizeObserver and document.fonts.ready ensures the measurement is taken after the Pi hardware has fully rendered the page, making it reliable under CPU load.
+5. If content overflows the visible area, a ResizeObserver measures the rendered content height after document.fonts.ready fires — ensuring the Pi hardware has finished font rendering before any measurement is taken. If overflow is detected, a unique CSS @keyframes animation is injected that scrolls content upward once, pausing at the top for SCROLL_PAUSE_SECONDS, scrolling through all content, then pausing at the bottom. No scroll occurs when content fits on screen. This approach is reliable under CPU load because the ResizeObserver + CSS animation runs independently of JavaScript's main thread after initialization.
 
 ## 9.5 Google Sheet Structure
 
@@ -718,24 +718,25 @@ The Google Sheet contains one tab per feed: a "Department News" tab for departme
 |-------------------|---------------|-----------------------------------------------------------------------------------------------------------------------------|
 | Title             | Yes           | Headline shown at the top of the card in bold                                                                               |
 | Content           | Yes           | Body text of the news item. Alt+Enter line breaks are preserved on display.                                                 |
-| Posted            | Yes           | Date/time the item was posted. Format: M/D/YY H:MM AM/PM or YYYY-MM-DD. Used for sorting and "new" badge calculation.      |
-| Expires           | Yes           | Date/time the item stops showing. Format: M/D/YY H:MM AM/PM or YYYY-MM-DD. Items without a valid expiry are not shown.     |
-| Posted By         | No            | Name of the person who posted the item. Shown in card metadata.                                                             |
+| Posted            | Yes           | Date/time the item was posted. Format: M/D/YY H:MM AM/PM or M/D/YYYY H:MM AM/PM. Used for sorting and "new" badge calculation. Interpreted as America/Chicago time. |
+| Expires           | Yes           | Date/time the item stops showing. Same format as Posted. Items without a valid expiry are not shown. Interpreted as America/Chicago time. |
+| Posted By         | No            | Name of the person who posted the item. Shown in card metadata only when not blank — omitted entirely when empty.           |
 | Recurring         | No            | Interval in days for recurring items (e.g. 7 for weekly). Leave blank for non-recurring items.                              |
-| Stop After        | No            | Date after which a recurring item no longer repeats.                                                                        |
+| Stop After        | No            | Date after which a recurring item no longer repeats. Format: M/D/YY H:MM AM/PM.                                            |
 
 ## 9.7 Configuration
 
-| **Constant**              | **Description**                                                                                                            |
-|---------------------------|----------------------------------------------------------------------------------------------------------------------------|
-| NEW_ITEM_THRESHOLD_DAYS   | Number of days after posting that an item shows the NEW badge (default: 3).                                                |
-| DISPLAY_DURATION_SECONDS  | How long the display shows this Worker before cycling. Used to calculate scroll animation speed (default: 20).             |
-| SCROLL_PAUSE_SECONDS      | Seconds to pause at top and bottom of scroll animation (default: 5).                                                       |
+| **Constant**                | **Description**                                                                                                          |
+|-----------------------------|--------------------------------------------------------------------------------------------------------------------------|
+| NEW_ITEM_THRESHOLD_DAYS     | Number of days after posting that an item shows the NEW badge (default: 3).                                              |
+| DISPLAY_DURATION_SECONDS    | How long the display shows this Worker before cycling. Used to calculate scroll animation speed (default: 20).           |
+| SCROLL_PAUSE_SECONDS        | Seconds to pause at top and bottom of scroll animation (default: 5).                                                     |
 | MIN_SCROLL_SPEED_PX_PER_SEC | Minimum scroll speed in pixels per second (default: 20).                                                                 |
 | MAX_SCROLL_SPEED_PX_PER_SEC | Maximum scroll speed in pixels per second (default: 75).                                                                 |
-| CARD_BODY_LINE_HEIGHT     | Line height for card body text (default: 1.25). Adjust if line spacing appears too tight or too loose on hardware.         |
-| CARD_META_LINE_HEIGHT     | Line height for card metadata (default: 1.6).                                                                              |
-| DELETE_EXPIRED_AFTER_DAYS | Days after expiry before expired non-recurring rows are automatically deleted by the scheduled cron job. -1 disables.      |
+| CARD_BODY_LINE_HEIGHT       | Line height for card body text (default: 1.25). Adjust if line spacing appears too tight or too loose on hardware.       |
+| CARD_META_LINE_HEIGHT       | Line height for card metadata (default: 1.6).                                                                            |
+| CACHE_SECONDS               | Seconds to cache sheet data server-side (default: 300 = 5 minutes). Does not cache the rendered HTML page.              |
+| DELETE_EXPIRED_AFTER_DAYS   | Days after expiry before expired non-recurring rows are automatically deleted by the scheduled cron job. -1 disables.    |
 
 ## 9.8 Adding News Items
 
@@ -743,13 +744,13 @@ The Google Sheet contains one tab per feed: a "Department News" tab for departme
 
 2. Add a new row with at minimum Title, Content, Posted, and Expires filled in.
 
-3. Fill in Expires with the date/time the item should stop showing.
+3. Fill in Expires with the date/time the item should stop showing. Items without a valid Expires date are not shown on the display.
 
-4. The Worker fetches sheet data on every request (with a short cache). New items appear on displays within 5 minutes.
+4. New items appear on displays within 5 minutes (one CACHE_SECONDS interval).
 
 ## 9.9 Recurring Items
 
-To create a recurring item (e.g. a weekly reminder), fill in the Recurring column with the interval in days (e.g. 7 for weekly) and optionally set a Stop After date. The item will repeat from its original Posted date at the configured interval until the Stop After date is reached.
+To create a recurring item (e.g. a weekly reminder), fill in the Recurring column with the interval in days (e.g. 7 for weekly) and optionally set a Stop After date. The item will repeat from its original Posted date at the configured interval until the Stop After date is reached. Recurring items are never auto-deleted by the cleanup cron job — they must be removed manually from the sheet.
 
 # 10. Project: Weather Display
 
