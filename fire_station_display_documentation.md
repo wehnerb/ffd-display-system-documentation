@@ -385,7 +385,7 @@ If the presentation has zero slides, the Worker returns a styled HTML page inste
 
 ## 4.8 Google Service Account
 
-The Google Slides API requires a service account for authentication. The service account credentials are stored as GitHub secrets and injected into the Worker at deployment time. The service account only has read-only access to the Slides API scope.
+The Google Slides API requires a service account for authentication. The service account credentials are stored as GitHub secrets and injected into the Worker at deployment time. For slide-timing-proxy, the service account requests the presentations.readonly scope. Each worker requests the minimum OAuth2 scope for its needs: daily-message-display and probationary-firefighter-display use drive.readonly; department-news-display uses the spreadsheets scope (read and write), which is required by its automated expired-row deletion feature.
 
 | **Security Note**                                                                                                                                                                                                                                                                                                                                                                                                     |
 |-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -481,7 +481,7 @@ Station displays previously had no mechanism for showing rotating safety message
 
 ## 6.3 URL Parameters
 
-The ?layout= parameter accepts: full (1920x1075, default), wide (1735x720), split (852x720), tri (558x720). The Daily Safety Message title label is only shown in the full layout.
+The ?layout= parameter accepts: full (1920x1075), wide (1735x720, default), split (852x720), tri (558x720). The Daily Safety Message title label is only shown in the full layout.
 
 ## 6.4 How It Works
 
@@ -503,7 +503,7 @@ Messages rotate every ROTATION_DAYS calendar days (default: 3). With 3-day block
 
 ## 6.6 Configuration
 
-Key constants in src/index.js: ROTATION_DAYS (default 3), ROTATION_ANCHOR (2026-01-23), IMAGE_SOURCE ("drive" or "network"), DEFAULT_LAYOUT ("full").
+Key constants in src/index.js: ROTATION_DAYS (default 3), ROTATION_ANCHOR (2026-01-23), IMAGE_SOURCE ("drive" or "network"), DEFAULT_LAYOUT ("wide").
 
 ## 6.7 Content Management
 
@@ -545,7 +545,9 @@ The ?layout= parameter controls which design is rendered. wide and full use the 
 
 1. The Worker checks the Workers Cache API for a previously rendered page matching the requested layout. If a valid cached response exists it is returned immediately.
 
-2. On a cache miss, data is fetched. For split and tri layouts, only the ICS file is fetched. For wide and full layouts, the ICS file and all NWS endpoints (daily forecast, hourly forecast, active alerts) are fetched in parallel.
+2. On a cache miss, data is fetched. For split and tri layouts, only the ICS file is fetched. For wide and full layouts, the ICS file and all NWS endpoints (daily forecast, hourly forecast, active alerts) are fetched in parallel when SHOW_WEATHER is true (see Section 7.6).
+
+  **Note:** SHOW_WEATHER is currently set to false in src/index.js. The weather integration described in steps 2 and in Section 7.7 is fully implemented in the code but is currently disabled. It was disabled after the standalone weather-display worker was deployed. To re-enable, set SHOW_WEATHER = true and deploy.
 
 3. The raw ICS text is fetched server-side from Nextcloud using HTTP Basic authentication with a Nextcloud app password. The display browser never contacts Nextcloud directly. Windows timezone names emitted by Exchange (e.g. "Central Standard Time") are automatically mapped to IANA timezone identifiers.
 
@@ -566,6 +568,8 @@ Full setup instructions for rebuilding this system on a new computer are in U:\F
 Key constants in src/index.js: DAYS_TO_SHOW (default 6), CACHE_SECONDS (default 900 = 15 minutes), CACHE_VERSION (increment to bust all cached pages immediately), FILTER_EXACT, FILTER_CONTAINS, ALLDAY_COLORS. NWS constants: NWS_OFFICE (FGF), NWS_GRID_X (65), NWS_GRID_Y (57), NWS_ALERT_ZONE (NDZ039 — Cass County ND), SHOW_WEATHER (boolean to enable/disable all weather fetches).
 
 ## 7.7 NWS Weather Display
+
+> **Currently disabled.** SHOW_WEATHER = false in src/index.js. The features below are built and available in the code but do not render on deployed displays. To re-enable, set SHOW_WEATHER = true in src/index.js, deploy to staging, test, and merge to main.
 
 Weather data is fetched from api.weather.gov with no API key required. All NWS fetches are edge-cached separately from the page cache.
 
@@ -687,8 +691,8 @@ Station displays previously had no way to show department-wide announcements or 
 
 | **Parameter** | **Default** | **Options**                   | **Description**                                                        |
 |---------------|-------------|-------------------------------|------------------------------------------------------------------------|
-| station       | dept        | dept, 1, 2, 3, 4, 5, 6, 7, 8 | Which tab to display. dept = department-wide news; 1–8 = station news. |
-| layout        | wide        | wide, split, tri, full        | Display column width.                                                  |
+| station       | (required)  | dept, 1, 2, 3, 4, 5, 6, 7, 8 | Which tab to display. dept = department-wide news; 1–8 = station news. This parameter is required — omitting it returns HTTP 400. |
+| layout        | split       | wide, split, tri, full        | Display column width.                                                  |
 
 Example URLs:
 
@@ -738,6 +742,8 @@ The Google Sheet contains one tab per feed: a "Department News" tab for departme
 | CACHE_SECONDS               | Seconds to cache sheet data server-side (default: 300 = 5 minutes). Does not cache the rendered HTML page.              |
 | DELETE_EXPIRED_AFTER_DAYS   | Days after expiry before expired non-recurring rows are automatically deleted by the scheduled cron job. -1 disables.    |
 
+**Scheduled Cleanup:** The automated row deletion runs on a Cloudflare cron trigger configured in wrangler.toml — it is not triggered by display requests. If the cron trigger is removed from wrangler.toml or is not active in the Cloudflare dashboard, expired rows will not be deleted automatically regardless of the DELETE_EXPIRED_AFTER_DAYS value. The cleanup iterates all tabs (Department News and FS#1–8) and deletes non-recurring rows that expired more than DELETE_EXPIRED_AFTER_DAYS days ago. The Google service account requires the spreadsheets scope (read and write) for this feature.
+
 ## 9.8 Adding News Items
 
 1. Open the Google Sheet and navigate to the appropriate tab (Department News or the relevant station tab).
@@ -773,7 +779,7 @@ Station displays needed a dedicated full-screen weather display showing current 
 | **Parameter** | **Default** | **Options**                  | **Description**                                                                                  |
 |---------------|-------------|------------------------------|--------------------------------------------------------------------------------------------------|
 | layout        | wide        | wide, full, split, tri       | Display size. wide and full show the full display (radar + conditions + hourly strip). split and tri show either radar or conditions only, controlled by the view parameter. |
-| view          | radar       | radar, conditions            | For split and tri layouts only. Selects which half of the display to render.                     |
+| view          | conditions  | radar, conditions            | For split and tri layouts only. Selects which half of the display to render.                     |
 | bg            | (none)      | dark                         | Testing parameter. Adds a dark background for browser-based testing. Not for production use.     |
 
 ## 10.4 How It Works
@@ -807,10 +813,10 @@ Station displays needed a dedicated full-screen weather display showing current 
 | NWS_OFFICE            | NWS forecast office identifier (FGF for Fargo).                                                                        |
 | NWS_GRID_X / Y        | NWS grid point coordinates (65, 57 for Fargo).                                                                         |
 | NWS_ALERT_ZONE        | NWS alert zone identifier (NDZ039 = Cass County ND).                                                                   |
-| RADAR_ZOOM            | Leaflet map zoom level for the radar display (default: 7).                                                              |
-| RADAR_FRAMES_COUNT    | Number of historical radar frames to animate (default: 18).                                                             |
+| RADAR_ZOOM            | Leaflet map zoom level for the radar display (default: 8). At zoom 8, RainViewer 512-px tiles are used automatically.    |
+| RADAR_FRAME_COUNT     | Number of historical radar frames to animate (default: 18).                                                             |
 | RADAR_FRAME_MS        | Milliseconds between radar animation frames (default: 200).                                                             |
-| RADAR_HOLD_MS         | Milliseconds to hold on the final (most recent) frame before looping (default: 2000).                                   |
+| RADAR_HOLD_MS         | Milliseconds to hold on the final (most recent) frame before looping (default: 2500).                                   |
 | RADAR_INIT_DELAY_MS   | Milliseconds to wait after page load before initializing the Leaflet map. Allows Pi hardware layout to complete first.  |
 | RADAR_OPACITY         | Opacity of the radar overlay tiles (0.0–1.0).                                                                           |
 | MAX_DISPLAY_ALERTS    | Maximum number of alert banners displayed simultaneously (default: 3).                                                  |
@@ -849,7 +855,7 @@ The ffd-station-display-utils repository contains shared design tokens, helper f
 | fetch-helpers.js   | fetchWithTimeout helper with AbortController for all upstream API fetches                |
 | html.js            | escapeHtml and sanitizeParam helper functions for safe HTML output                       |
 | google-auth.js     | getAccessToken function for Google service account JWT authentication                    |
-| rotation.js        | getTodayString, getBlockIndex, getSecondsUntilNextRotation helpers for 3-day rotation     |
+| rotation.js        | getTodayString, getDaysElapsed, getBlockIndex, getSecondsUntilNextRotation, formatHireDate helpers for 3-day rotation and hire date formatting |
 
 ## 11.4 Auto-Sync Pipeline
 
@@ -952,7 +958,6 @@ The display screens must have outbound internet access on port 443 (HTTPS) to th
 
 - \*.workers.dev — Cloudflare Worker endpoints (all 8 Worker projects)
 - docs.google.com — Google Slides embeds
-- www.googleapis.com — Google Drive API (photo and image requests proxied through the Worker)
 - www.dot.nd.gov — ND DOT traffic camera images (fetched directly by the display browser)
 - usgs-nims-images.s3.amazonaws.com — USGS river camera images (fetched directly by the display browser)
 - water.noaa.gov — NOAA river gauge images (fetched directly by the display browser)
@@ -960,7 +965,7 @@ The display screens must have outbound internet access on port 443 (HTTPS) to th
 - \*.basemaps.cartocdn.com — CartoDB Dark Matter base map tiles for the radar display
 - tilecache.rainviewer.com — RainViewer radar overlay tiles
 
-Note: api.weather.gov, api.rainviewer.com, and www.airnowapi.org are fetched by the Cloudflare Worker on its own network — not by the display screens directly.
+Note: api.weather.gov, api.rainviewer.com, and www.airnowapi.org are fetched by the Cloudflare Worker on its own network — not by the display screens directly. www.googleapis.com is also accessed only by the Cloudflare Worker server-side (for Google Slides, Sheets, and Drive API calls). Photo and image proxy routes (/photo/ and /image/) resolve back to the Worker — the display browser never contacts googleapis.com directly and does not require firewall access to that domain.
 
 ## 13.3 Troubleshooting
 
