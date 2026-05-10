@@ -93,13 +93,16 @@ This document captures feasibility considerations, known risks, and design requi
 
 ---
 
-## Known Edge Cases (To Be Documented)
+## Known Edge Cases and Existing Issues
 
 > This section should be populated with the specific edge cases identified through past discussions with the current vendor. These must be captured as explicit requirements before development begins.
 
-- [ ] Edge case 1 — *description TBD*
-- [ ] Edge case 2 — *description TBD*
-- [ ] ...
+- [ ] Stations Re-Alerting for Old Incidents - After server maintenance periods, stations would re-alert for any incident in their station that was still in the active folder. APS' fix was to create a hash of the file contents, then compare that hash to a memory of previous hashes (memory was about 30 days), and if it was a match, not alert. This meant that any calls that had already been closed would have had a matching hash after the server came back online and it would not alert for those incidents. IS found that file contents did change after server maintenance, but the APS fix did seem to take care of the issue
+- [ ] Delayed Station Notification - CAD Exporter does not reliably export data within a reasonable time (up to 10-12 seconds). APS will be implementing a fix (as of 4/2026) that utilizes the email feature from CAD for quick notification (if the email server responds quickly enough), then merges that data with the XML file once that is created. This gives us quick notification with the full data of the XML file
+- [ ] Station Re-Alerted - Station 5 was realerted over a day after they had cleared from a call. We determined that the call was still active for PD and when a PD unit was updated, that caused the station to be realerted. A new flag was added to the listener so that if the call was closed for fire, the station did not alert, even if the file was updated
+- [ ] Station Not Alerted When a Unit was Re-Added - Station 5 was not alerted for a call after they had cleared from it. They initially responded to a call, but were cleared by PD, so they cleared and the call was closed for fire. They were then re-added to the call, but the station did not alert because it had already been shown as closed for fire. APS implemented a fix, but I don't know how they fixed it.
+- [ ] Old Calls Causing Activation when Updated by Dispatch - Station 5 was alerted at 17:08:31 on 11/22/25 due to an incident being detected from 10/12/25. APS app showed the 10/12 date, but data in the controller log doesn't seem to reference this date. Per Todd in IS on 11/24: *It looks like the call was reactivated on 11/22 @ 17:08 by Dispatch, the call source was changed from Telephone to 911, and then the call was closed again. This might be a conversation on two fronts, APS on if there is a way to exclude scenarios like this, and Dispatch on a process to address re-opening of old calls.* APS implemented a fix that ignores any calls older than 30 days
+- [ ] Station Missed Alerts - Station 8 missed alerts because the OS had rebooted and had not fully connected back to the network. Per APS: *On investigation I found the following. The controller was rebooted, the OS attempted to reconnect to the network share on boot, which partially failed. The cause of the failure was timing issue. When the system rebooted it tried to remount the network share, just before or as the network interface was connecting. This in turn caused the network share to appear mounted when it wasn’t. This required manual intervention to resolve. For now, I have added a new flag to wait for network connectivity, before mounting the network share. I also have created story to prevent this issue in the future by identifying when it happens and auto correcting.*
 
 ---
 
