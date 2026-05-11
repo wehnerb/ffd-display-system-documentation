@@ -2,7 +2,7 @@
 
 *Technical Reference Guide for Department Staff, Administrators, and IT Support*
 
-Last Updated: May 2, 2026
+Last Updated: May 10, 2026
 
 Maintained by: Brandon Wehner
 
@@ -186,9 +186,11 @@ If a new person takes over maintenance of this system, the following steps must 
 
 The station display system cannot resize images natively. Without intervention, images either fail to fill a display column entirely or overflow beyond its boundaries.
 
-The Image Proxy Worker solves this by returning a self-contained HTML page rather than a raw image. Each page contains the source image URL and CSS that scales the image to fit the display column using object-fit: contain. Because the browser on the display hardware handles all scaling locally, no external image processing service is required.
+The Image Proxy Worker solves this by returning a self-contained HTML page rather than a raw image. Each page contains an image element pointing at the Worker's own /proxy endpoint, with CSS that scales the image to fit the display column using object-fit: contain. Because the browser on the display hardware handles all scaling locally, no external image processing service is required.
 
-Image freshness is handled entirely by the display hardware. Source image URLs for ND DOT cameras, USGS, and NOAA are designed to always return the latest image when loaded without additional query parameters. The display browser requests a fresh copy of each source image each time the page is rendered.
+The /proxy endpoint streams each upstream image (ND DOT, USGS, or NOAA) through the Worker so that all image fetches originate from the same workers.dev origin as the HTML page. This avoids a Chrome Private Network Access (PNA) restriction that blocks public-origin pages from fetching subresources from domains that resolve to private IP addresses on the local network — a behavior triggered on networks with split DNS or transparent proxies.
+
+Image freshness is preserved: the /proxy endpoint disables Cloudflare edge caching on every request and sets Cache-Control: no-store on its responses, so each refresh of the display retrieves a fresh frame from the upstream source. No image bytes are buffered, decoded, or modified by the Worker — the upstream response is streamed through unchanged.
 
 ## 3.2 Repository & Deployment
 
@@ -202,11 +204,13 @@ Image freshness is handled entirely by the display hardware. Source image URLs f
 
 ## 3.3 How It Works
 
-When a display screen loads an image URL, the request goes to the Cloudflare Worker. The Worker reads the URL parameters to determine which image to display and what layout dimensions to use. It returns a self-contained HTML page containing the source image URL and CSS rules that scale the image to fill the slot using object-fit: contain with a transparent background.
+When a display screen loads an image URL, the request goes to the Cloudflare Worker. The Worker reads the URL parameters to determine which image to display and what layout dimensions to use. It returns a self-contained HTML page containing an image element whose src points at the Worker's own /proxy endpoint (e.g., /proxy?key=i29MainAve-north), plus CSS rules that scale the image to fill the slot using object-fit: contain with a transparent background.
 
-The display browser fetches the source image directly from its origin server (ND DOT, USGS, or NOAA) and handles all scaling locally. No external image processing service is involved.
+The display browser then requests the image from the /proxy endpoint. The Worker validates the requested key against the MAPPING table, fetches the corresponding upstream URL (ND DOT, USGS, or NOAA), and streams the response body back to the browser unchanged. No image processing, decoding, or buffering occurs — the upstream bytes pass straight through, keeping CPU usage well under the 10 ms Worker free-tier limit.
 
-Cache-Control: no-store is set on all HTML responses so the display browser always requests a fresh copy of the page rather than serving a locally cached version.
+This proxy-through pattern exists to avoid Chrome Private Network Access (PNA) blocking. When the HTML page is loaded from a public workers.dev origin and DNS on the local network resolves upstream domains (such as www.dot.nd.gov) to private IP addresses, Chrome blocks the cross-origin image fetches as a security measure. Routing all image fetches through the Worker means the browser only ever contacts the workers.dev origin, sidestepping the issue entirely.
+
+Cache-Control: no-store is set on both the HTML response and every /proxy response. Cloudflare edge caching is also explicitly disabled on /proxy upstream fetches (cf.cacheTtl: 0), so every display refresh produces a fresh frame from the upstream source.
 
 ## 3.4 URL Parameters
 
@@ -215,6 +219,7 @@ Cache-Control: no-store is set on all HTML responses so the display browser alwa
 | img           | (required)  | Any key from MAPPING | The image key name to display. Combine two keys with + for stacking.                          |
 | layout        | split       | wide, split, tri     | Column width: 1-column (wide), 2-column (split), 3-column (tri). Default is split (2-column). |
 
+The Worker also exposes an internal /proxy endpoint used by the rendered HTML page to fetch upstream image bytes. It accepts a single key parameter (e.g., /proxy?key=i29MainAve-north) that must match an entry in the MAPPING table. This endpoint is not intended for direct configuration on a display screen — displays must always use the ?img= endpoint, which renders the HTML page that in turn references /proxy. The /proxy endpoint only accepts keys defined in MAPPING; arbitrary URLs cannot be fetched through it, preventing the Worker from being used as an open proxy.
 
 ## 3.5 Layout Dimensions
 
@@ -245,7 +250,7 @@ Two images can be stacked vertically within a single column by separating two im
 
 ## 3.8 Adding New Images
 
-All images are defined in the MAPPING object near the top of worker_code.js. To add a new camera or data image:
+All images are defined in the MAPPING object near the top of index.js. To add a new camera or data image:
 
 1.  Open the staging branch of the station-image-proxy repository in GitHub.
 
@@ -975,21 +980,18 @@ The display screens must have outbound internet access on port 443 (HTTPS) to th
 
 - \*.workers.dev — Cloudflare Worker endpoints (all 8 Worker projects)
 - docs.google.com — Google Slides embeds
-- www.dot.nd.gov — ND DOT traffic camera images (fetched directly by the display browser)
-- usgs-nims-images.s3.amazonaws.com — USGS river camera images (fetched directly by the display browser)
-- water.noaa.gov — NOAA river gauge images (fetched directly by the display browser)
 - cdnjs.cloudflare.com — Leaflet.js CSS and JavaScript for the weather display radar map
 - \*.basemaps.cartocdn.com — CartoDB Dark Matter base map tiles for the radar display
 - tilecache.rainviewer.com — RainViewer radar overlay tiles
 
-Note: api.weather.gov, api.rainviewer.com, and www.airnowapi.org are fetched by the Cloudflare Worker on its own network — not by the display screens directly. www.googleapis.com is also accessed only by the Cloudflare Worker server-side (for Google Slides, Sheets, and Drive API calls). Photo and image proxy routes (/photo/ and /image/) resolve back to the Worker — the display browser never contacts googleapis.com directly and does not require firewall access to that domain.
+Note: www.dot.nd.gov, usgs-nims-images.s3.amazonaws.com, and water.noaa.gov are fetched by the station-image-proxy Worker on its own network — not by the display screens directly. The display browser receives these images through the Worker's /proxy endpoint on workers.dev. api.weather.gov, api.rainviewer.com, and www.airnowapi.org are similarly fetched by other Cloudflare Workers on their own network, not by the display screens directly. www.googleapis.com is also accessed only by the Cloudflare Worker server-side (for Google Slides, Sheets, and Drive API calls). Photo and image proxy routes (/photo/ and /image/) on the daily-message-display and probationary-firefighter-display Workers resolve back to those Workers — the display browser never contacts googleapis.com directly and does not require firewall access to that domain.
 
 ## 13.3 Troubleshooting
 
 | **Symptom**                                       | **Likely Cause**                                       | **Resolution**                                                                                                                                                                                          |
 |---------------------------------------------------|--------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Display shows blank/white screen                  | Network connectivity or display hardware issue         | Check internet connectivity at the screen. Verify the Worker URL loads in a browser on the same network.                                                                                                |
-| Images show INVALID IMAGE KEY error               | Invalid or missing image key in the URL                | Check the img parameter in the display URL against the MAPPING list in worker_code.js (Section 3.9).                                                                                                    |
+| Images show INVALID IMAGE KEY error               | Invalid or missing image key in the URL                | Check the img parameter in the display URL against the MAPPING list in index.js (Section 3.9).                                                                                                    |
 | Images show IMAGE UNAVAILABLE                     | Source camera or data feed is offline                  | Check the source URL directly. This is typically a third-party outage outside department control.                                                                                                       |
 | River gauge shows error page                      | NOAA API temporarily unavailable                       | The page retries automatically every 60 seconds. Check api.water.noaa.gov directly if persistent.                                                                                                       |
 | Slides cycling at wrong speed                     | Slide count API call failing or secrets missing        | Check Cloudflare Worker logs. Verify GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY are present in the Cloudflare dashboard for slide-timing-proxy.                                                |
@@ -1020,7 +1022,7 @@ All 8 Workers are monitored via UptimeRobot at 5-minute intervals. Each monitor 
 
 | **Service**                              | **Free Tier Limit**                   | **Est. Daily Usage (8 stations)**                                              | **Where to Check**                                     |
 |------------------------------------------|---------------------------------------|--------------------------------------------------------------------------------|--------------------------------------------------------|
-| Cloudflare Workers (combined total)      | 100,000 req/day                       | ~20,000–30,000 req/day (varies by layout and cache hit rate)                   | dash.cloudflare.com → Workers & Pages → Overview       |
+| Cloudflare Workers (combined total)      | 100,000 req/day                       | ~30,000–70,000 req/day (varies by layout and cache hit rate)                   | dash.cloudflare.com → Workers & Pages → Overview       |
 | Google Slides API                        | 300 req/minute                        | At most 1 request per hour per cache version                                   | console.cloud.google.com → APIs & Services → Dashboard |
 | Google Sheets API                        | 300 req/minute per project            | Low — edge-cached to limit calls                                               | console.cloud.google.com → APIs & Services → Dashboard |
 | Google Drive API                         | 1,000 req/100 seconds                 | Low — one listing call per Worker request, results edge-cached                 | console.cloud.google.com → APIs & Services → Dashboard |
