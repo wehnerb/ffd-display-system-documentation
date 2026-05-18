@@ -2,7 +2,7 @@
 
 *Technical Reference Guide for Department Staff, Administrators, and IT Support*
 
-Last Updated: May 10, 2026
+Last Updated: May 17, 2026
 
 Maintained by: Brandon Wehner
 
@@ -626,9 +626,11 @@ The ?layout= parameter controls which design is rendered. Default is wide. The f
 
 4. The current firefighter is selected using the same rotation block index as daily-message-display: floor(daysElapsed / ROTATION_DAYS) % activeCount, anchored to January 23, 2026 in America/Chicago time.
 
-5. A self-contained HTML page is returned with the photo on the left and bio information on the right (wide/full layouts) or stacked (split/tri layouts). The photo is served via a streaming proxy route (/photo/{fileId}) — the display browser requests the photo from the Worker, which fetches it from Drive server-side using the service account token and streams the bytes directly to the browser. No base64 encoding is performed. The service account token never appears in any client-visible URL.
+5. A self-contained HTML page is returned with the photo on the left and bio information on the right (wide/full layouts) or photo stacked above bio information (split/tri layouts). The photo is served via a streaming proxy route (/photo/{fileId}) — the display browser requests the photo from the Worker, which fetches it from Drive server-side using the service account token and streams the bytes directly to the browser. No base64 encoding is performed. The service account token never appears in any client-visible URL. Photo scaling is layout-aware: wide/full layouts use object-fit: cover (the photo fills the tall narrow column, anchored to the top so faces are not cropped); split/tri layouts use object-fit: contain (the photo is scaled down to fit the short wide strip so the full image is always visible, with the dark panel background filling the sides).
 
-6. The meta-refresh interval is set to the exact seconds until the next 7:30 AM Central rotation boundary. No server-side caching is used — every request generates a fresh page to ensure the display always reflects the current rotation.
+6. If Q&A answers are long enough to exceed the available panel height, a ResizeObserver measures the rendered content height after document.fonts.ready fires — ensuring the hardware has finished font rendering before any measurement is taken. If overflow is confirmed across two consecutive animation frames, a unique CSS @keyframes animation scrolls the Q&A content upward once: pausing at the top, scrolling through all content at a speed clamped between QA_MIN_SCROLL_SPEED_PX_PER_SEC and QA_MAX_SCROLL_SPEED_PX_PER_SEC, then pausing at the bottom. No scroll occurs when all Q&A content fits on screen.
+
+7. The meta-refresh interval is set to the exact seconds until the next 7:30 AM Central rotation boundary. No server-side caching is used — every request generates a fresh page to ensure the display always reflects the current rotation.
 
 ## 8.5 Rotation Logic
 
@@ -661,6 +663,10 @@ The rotation is identical to daily-message-display in all respects: 3-day blocks
 | ROTATION_ANCHOR | Anchor date for rotation (2026-01-23). Matches daily-message-display. Do not change unless intentionally resetting the cycle.|
 | HIRE_ACTIVE_DAYS| Days after hire date a firefighter remains on the display (default 365). Firefighters drop off automatically.                |
 | SHEET_TAB_NAME  | Name of the tab in the Google Sheet (default: Firefighters).                                                                 |
+| QA_SCROLL_DURATION_SECONDS  | Total seconds budgeted for one complete Q&A scroll cycle (pause top → scroll → pause bottom). Controls scroll speed — a longer value produces slower scrolling (default: 60).    |
+| QA_SCROLL_PAUSE_SECONDS     | Seconds to pause at the top and bottom of the Q&A scroll before and after scrolling (default: 12).                                                                               |
+| QA_MIN_SCROLL_SPEED_PX_PER_SEC | Minimum Q&A scroll speed in pixels per second. Prevents imperceptibly slow scrolling when content only slightly overflows (default: 5).                                        |
+| QA_MAX_SCROLL_SPEED_PX_PER_SEC | Maximum Q&A scroll speed in pixels per second. Prevents uncomfortably fast scrolling when answers are very long (default: 50).                                                 |
 
 ## 8.9 Adding a New Hire
 
