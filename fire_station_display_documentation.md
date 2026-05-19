@@ -789,13 +789,13 @@ Station displays needed a dedicated full-screen weather display showing current 
 
 |**Parameter**|**Default**|**Options**|**Description**|
 |-|-|-|-|
-|layout|wide|wide, full, split, tri|Display size. wide and full show the full display (radar + conditions + forecast + hourly strip). split and tri show either radar or conditions only, controlled by the view parameter.|
+|layout|wide|wide, full, split, tri|Display size. wide and full show the full display (radar + conditions + forecast band). split and tri show either radar or conditions only, controlled by the view parameter.|
 |view|conditions|radar, conditions|For split and tri layouts only. Selects which half of the display to render.|
 |bg|(none)|dark|Testing parameter. Forces a fully opaque dark background (#111111) for browser-based testing, bypassing the semi-transparent hardware background and the Cloudflare cache. Not for production use.|
 
 ## 10.4 How It Works
 
-1. The Worker fetches data in parallel from multiple sources: NWS current conditions, NWS daily forecast, NWS hourly forecast, NWS active alerts for Cass County (NDZ039), AirNow AQI for Fargo (zip 58102), and RainViewer radar frame metadata.
+1. The Worker fetches data in parallel from multiple sources: NWS current conditions, NWS daily forecast, NWS active alerts for Cass County (NDZ039), AirNow AQI for Fargo (zip 58102), and RainViewer radar frame metadata.
 
 2. Each data source fails gracefully — if any upstream source is unavailable, the relevant section is omitted rather than returning an error page.
 
@@ -805,7 +805,7 @@ Station displays needed a dedicated full-screen weather display showing current 
 
 ## 10.5 Display Sections
 
-**Layout Structure (wide/full):** The display is organized as four stacked horizontal bands from top to bottom: alert banners, hero zone, 3-day forecast, and hourly strip.
+**Layout Structure (wide/full):** The display is organized as four stacked horizontal bands from top to bottom: alert banners, hero zone, accent divider, and 3-day forecast.
 
 **Alert Banners:** Active NWS weather alerts appear as full-width colored banners stacked at the top of the display. Banner colors follow NWS severity: red for Warnings, orange for Watches, amber for Advisories. Up to MAX\_DISPLAY\_ALERTS banners are shown simultaneously; the most severe alerts take priority. Future alerts (not yet active) fill any remaining banner slots with a "begins Day H:MM AM/PM" label. When alerts are present, hero zone content scales proportionally to fit the remaining vertical space. The forecast and hourly bands have fixed heights that do not change with alert count.
 
@@ -814,15 +814,14 @@ Station displays needed a dedicated full-screen weather display showing current 
 **Current Conditions Panel:** Three stacked regions inside the left column.
 
 * *Hero row:* Four columns — (1) current temperature with feels-like temperature below it; (2) condition icon and condition text with AQI badge below; (3) today's high and low temperatures; (4) sunrise and sunset times with icons.
-* *Stats grid:* A 3×2 grid showing Wind Speed, Humidity (with dew point), Pressure, Wind Gust, Visibility, and UV Index. Labels use tertiary text; values use primary text. Wind Gust shows "None" when no gust is reported. Pressure always displays two decimal places. UV Index includes the EPA category label (Low, Moderate, High, Very High, Extreme). The bottom of the conditions panel shows the "3-DAY FORECAST" section label, which spans the width of the conditions panel only.
+* *Stats grid:* A 3×2 grid showing Wind Speed, Humidity (with dew point), Pressure, Wind Gust, Visibility, and UV Index. Labels use tertiary text; values use primary text. Wind Gust shows "None" when no gust is reported. Pressure always displays two decimal places. UV Index includes the EPA category label (Low, Moderate, High, Very High, Extreme).
+* *Accent divider:* A 4px solid bar in the department accent color spanning the width of the conditions panel, visually aligning with the radar progress bar on the right.
 
 **Radar:** An animated radar map using Leaflet.js with the CartoDB Dark Matter base layer and RainViewer radar tile overlays. The animation uses a double-buffer approach for smooth frame transitions. The radar shows the most recent RADAR\_FRAME\_COUNT frames in a loop with a hold on the final (most recent) frame.
 
 **3-Day Forecast:** A full-width band below the hero zone showing three equal-width day cards side by side. Each card shows the day name, condition icon, condition text, wind line, precipitation probability, and high/low temperatures in a single compact row. If any forecast day has an active or future alert, a full-width colored alert banner appears at the top of that day's card. Days without an alert show a blank placeholder of equal height to keep the card content vertically aligned across all three cards. Alert banner colors follow NWS severity and include a bottom border in the matching severity color.
 
-**Hourly Strip:** A full-width band at the bottom of the wide/full layout showing 12 hourly time slots. Divided into three sub-bands: (1) time labels along the top (NOW, 1 PM, 2 AM, etc.); (2) an SVG temperature curve through all 12 points with floating temperature labels above each dot and an amber area fill below the line; (3) condition icons and precipitation probability bars with percentage labels along the bottom. A red-to-transparent gradient divider separates the forecast band from the hourly strip.
-
-**Split/Tri Layout:** No hourly strip. The conditions panel and a stacked 3-day forecast (three cards stacked vertically) fill the conditions-only view. The radar-only view is unchanged.
+**Split/Tri Layout:** The conditions panel and a stacked 3-day forecast (three cards stacked vertically) fill the conditions-only view. The radar-only view is unchanged.
 
 ## 10.6 Configuration
 
@@ -840,11 +839,8 @@ Station displays needed a dedicated full-screen weather display showing current 
 |RADAR\_INIT\_DELAY\_MS|Milliseconds to wait after page load before initializing the Leaflet map. Allows Pi hardware layout to complete first.|
 |RADAR\_OPACITY|Opacity of the radar overlay tiles (0.0–1.0).|
 |MAX\_DISPLAY\_ALERTS|Maximum number of alert banners displayed simultaneously (default: 3).|
-|ALERT\_BANNER\_HEIGHT\_PX|Vertical pixels reserved per active alert banner for proportional hero zone scaling (default: 52). The forecast and hourly bands are not affected by alert count.|
-|HOURLY\_COUNT|Number of hourly slots shown in the bottom strip (default: 12).|
-|HOURLY\_HEIGHT|Height in pixels of the hourly strip by layout key — `{ full: 220, wide: 180 }`. Adjust to control the vertical size of the hourly band.|
-|FORECAST\_BAND\_HEIGHT|Height in pixels of the 3-day forecast band by layout key — `{ full: 135, wide: 110 }`. Adjust to control the vertical size of the forecast cards.|
-|DIVIDER\_HEIGHT|Height in pixels of the gradient divider rule between the forecast band and the hourly strip (default: 4).|
+|ALERT\_BANNER\_HEIGHT\_PX|Vertical pixels reserved per active alert banner for proportional hero zone scaling (default: 52). The forecast band is not affected by alert count.|
+|FORECAST\_BAND\_HEIGHT|Height in pixels of the 3-day forecast band by layout key — `{ full: 160, wide: 130 }`. Adjust to control the vertical size of the forecast cards.|
 |HI\_TEMP\_COLOR|Worker-local hex color for today's high temperature label and value (default: `#f0a060`). Independent from shared utils so it can be tuned without affecting other workers.|
 |LO\_TEMP\_COLOR|Worker-local hex color for tonight's low temperature label and value (default: `#80c8f0`).|
 |SOLAR\_COLOR|Worker-local hex color for sunrise/sunset values and the hourly temperature curve (default: `#f0c040`).|
