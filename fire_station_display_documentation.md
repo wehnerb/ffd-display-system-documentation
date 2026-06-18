@@ -2,7 +2,7 @@
 
 *Technical Reference Guide for Department Staff, Administrators, and IT Support*
 
-Last Updated: June 11, 2026
+Last Updated: June 17, 2026
 
 Maintained by: Brandon Wehner
 
@@ -775,7 +775,7 @@ Station displays needed a dedicated full-screen weather display showing current 
 
 ## 10.4 How It Works
 
-1. The Worker fetches data in parallel from multiple sources: NWS current conditions, NWS daily forecast, NWS active alerts for Cass County (NDZ039), AirNow AQI for Fargo (zip 58102), and RainViewer radar frame metadata.
+1. The Worker fetches data in parallel from multiple sources: NWS current conditions, NWS daily forecast, NWS active alerts for Cass County (NDZ039), AirNow AQI for Fargo (by latitude/longitude), and RainViewer radar frame metadata.
 1. Each data source fails gracefully — if any upstream source is unavailable, the relevant section is omitted rather than returning an error page.
 1. Weather data is edge-cached at Cloudflare to limit upstream API calls across all stations.
 1. A self-contained HTML page is rendered for the requested layout and returned to the display.
@@ -826,7 +826,31 @@ Station displays needed a dedicated full-screen weather display showing current 
 
 ## 10.7 AirNow API Key
 
-The AIRNOW_API_KEY secret must be set in the Cloudflare dashboard. Register for a free key at docs.airnowapi.org. If the key is missing or the AirNow API is unavailable, the AQI badge is silently omitted.
+The AIRNOW_API_KEY secret must be set in the Cloudflare dashboard for both the production and staging workers. Register for a free key at docs.airnowapi.org. If the key is missing or the AirNow API is unavailable, the AQI badge is silently omitted and all other weather data renders normally.
+
+### AirNow Endpoint (June 2026 Migration)
+
+In June 2026, AirNow retired several legacy API endpoints effective September 30, 2026. The Worker was updated to use the new consolidated endpoint before the deadline.
+
+|**Item**|**Value**|
+|--------|---------|
+|Current endpoint|`https://www.airnowapi.org/aq/observation/current/ziplatlong/`|
+|Retired endpoint (do not use)|`https://www.airnowapi.org/aq/observation/latLong/current/`|
+|Response field for AQI value|`nowcastAQI` (was `AQI` in the old API)|
+|Response field for pollutant name|`parameterName` (was `ParameterName` in the old API)|
+
+The new endpoint accepts `latitude` and `longitude` parameters. The `distance` parameter is no longer accepted — lookup boundary is now server-controlled (defaulting to 25 miles).
+
+### Rotating the API Key
+
+If the AirNow API key needs to be rotated (e.g., if it was ever exposed in a screenshot, log, or shared environment):
+
+1. Log in to docs.airnowapi.org.
+2. Click **Generate New API Key** in the top right corner. The old key is immediately invalidated.
+3. Copy the new key — it is only shown once.
+4. Go to Cloudflare dashboard → Workers & Pages → `weather-display` → Settings → Variables and Secrets → edit `AIRNOW_API_KEY` → paste the new key → Save.
+5. Repeat for `weather-display-staging`.
+6. Verify by loading `/healthz` on both Workers and confirming `airnow: reachable` appears in the response.
 
 ## 10.8 NWS Configuration
 
