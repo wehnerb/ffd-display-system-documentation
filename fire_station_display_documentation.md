@@ -2,7 +2,7 @@
 
 *Technical Reference Guide for Department Staff, Administrators, and IT Support*
 
-Last Updated: June 17, 2026
+Last Updated: June 29, 2026
 
 Maintained by: Brandon Wehner
 
@@ -538,7 +538,11 @@ Full setup instructions for rebuilding this system on a new computer are in U:\F
 
 ## 7.6 Configuration
 
-Key constants in src/index.js: DAYS_TO_SHOW (default 6), CACHE_SECONDS (default 900 = 15 minutes), CACHE_VERSION (increment to bust all cached pages immediately), FILTER_EXACT, FILTER_CONTAINS, ALLDAY_COLORS. NWS constants: NWS_OFFICE (FGF), NWS_GRID_X (65), NWS_GRID_Y (57), NWS_ALERT_ZONE (NDZ039 — Cass County ND), SHOW_WEATHER (boolean to enable/disable all weather fetches).
+Key constants in src/index.js: DAYS_TO_SHOW (default 6), CACHE_SECONDS (default 900 = 15 minutes), CACHE_VERSION (increment to bust all cached pages immediately), FILTER_EXACT, FILTER_CONTAINS, ALLDAY_COLORS. NWS constants: NWS_OFFICE (FGF), NWS_GRID_X (65), NWS_GRID_Y (57), NWS_ALERT_ZONE (NDZ039 — Cass County ND forecast zone, retained for reference only), NWS_COUNTY_CODE (NDC017 — Cass County ND county zone, used for all alert queries — see Section 7.6.1), SHOW_WEATHER (boolean to enable/disable all weather fetches).
+
+## 7.6.1 NWS Alert Geolocation: Zone vs. County (June 2026 Fix)
+
+This Worker's NWS alert query was updated using the same fix applied to weather-display (see Section 10.6.1 for full background). In summary: NWS Tornado Watches and Severe Thunderstorm Watches are county-based products that are never returned by a forecast-zone query (`?zone=NDZ039`). The Worker now queries by county zone (`?zone=NDC017`), which returns both county-based alerts and all zone-based alerts mapped to Cass County. `NWS_ALERT_ZONE` is retained in the code as a reference constant only. The alert processing logic also falls back to the `ends` field when `expires` is absent, matching the weather-display fix.
 
 ## 7.7 NWS Weather Display
 
@@ -550,7 +554,7 @@ Weather data is fetched from api.weather.gov with no API key required. All NWS f
 
 **Hourly forecast strip:** The today panel body shows remaining hours at configurable intervals. Each slot shows the hour label, temperature, and an inline SVG weather icon.
 
-**Alert banners:** Active NWS alerts for Cass County (NDZ039) appear as full-width colored banners above the calendar panels, sorted by severity. Red = Warning, Orange = Watch, Yellow = Advisory. Each banner shows the alert name and when it ends.
+**Alert banners:** Active NWS alerts for Cass County (queried via county zone NDC017 — see Section 7.6.1) appear as full-width colored banners above the calendar panels, sorted by severity. Red = Warning, Orange = Watch, Yellow = Advisory. Each banner shows the alert name and when it ends.
 
 **Alert badges:** Upcoming alerts not yet active appear as severity-colored pills in affected day column headers.
 
@@ -775,7 +779,7 @@ Station displays needed a dedicated full-screen weather display showing current 
 
 ## 10.4 How It Works
 
-1. The Worker fetches data in parallel from multiple sources: NWS current conditions, NWS daily forecast, NWS active alerts for Cass County (NDZ039), AirNow AQI for Fargo (by latitude/longitude), and RainViewer radar frame metadata.
+1. The Worker fetches data in parallel from multiple sources: NWS current conditions, NWS daily forecast, NWS active alerts for Cass County (queried via county zone NDC017 — see Section 10.6.1), AirNow AQI for Fargo (by latitude/longitude), and RainViewer radar frame metadata.
 1. Each data source fails gracefully — if any upstream source is unavailable, the relevant section is omitted rather than returning an error page.
 1. Weather data is edge-cached at Cloudflare to limit upstream API calls across all stations.
 1. A self-contained HTML page is rendered for the requested layout and returned to the display.
@@ -808,7 +812,8 @@ Station displays needed a dedicated full-screen weather display showing current 
 |LOCATION_LON          |Longitude of the display location (Fargo: -96.7898).                                                                                                                                                                                                                         |
 |NWS_OFFICE            |NWS forecast office identifier (FGF for Fargo).                                                                                                                                                                                                                              |
 |NWS_GRID_X / Y        |NWS grid point coordinates (65, 57 for Fargo).                                                                                                                                                                                                                               |
-|NWS_ALERT_ZONE        |NWS alert zone identifier (NDZ039 = Cass County ND).                                                                                                                                                                                                                         |
+|NWS_ALERT_ZONE        |NWS forecast zone identifier (NDZ039 = Cass County ND). Retained for reference only — alert queries use NWS_COUNTY_CODE (see note below).                                                                                                                                  |
+|NWS_COUNTY_CODE       |NWS county zone identifier used for all alert queries (NDC017 = Cass County ND). County-zone queries return both county-based alerts (Tornado Watch, Severe Thunderstorm Watch) and all zone-based alerts mapped to the county — see Section 10.6.1.                       |
 |RADAR_ZOOM            |Leaflet map zoom level for the radar display (default: 8). At zoom 8, RainViewer 512-px tiles are used automatically.                                                                                                                                                        |
 |RADAR_FRAME_COUNT     |Number of historical radar frames to animate (default: 18).                                                                                                                                                                                                                  |
 |RADAR_FRAME_MS        |Milliseconds between radar animation frames (default: 200).                                                                                                                                                                                                                  |
@@ -824,7 +829,27 @@ Station displays needed a dedicated full-screen weather display showing current 
 |DISPLAY_BG_COLOR      |Worker-local hex color for the page background on hardware displays (default: `#111111`). Used together with DISPLAY_BG_OPACITY to control how much of the display hardware shows through. Must be a 6-digit hex string.                                                     |
 |DISPLAY_BG_OPACITY    |Opacity of the hardware display background on a 0–1 scale (default: 0.25). 0 = fully transparent (hardware fully visible), 1 = fully opaque (no hardware visible). Does not affect the `?bg=dark` or full layout backgrounds, which always use DARK_BG_COLOR at full opacity.|
 
+## 10.6.1 NWS Alert Geolocation: Zone vs. County (June 2026 Fix)
+
+**Background:** The NWS API uses two separate, non-overlapping geolocation systems for alerts:
+
+- **Forecast zone queries** (`?zone=NDZ039`) return zone-based alerts only — winter storms, heat advisories, fire weather, and similar large-scale, longer-duration hazards.
+- **County zone queries** (`?zone=NDC017`) return *both* county-based alerts (Tornado Watch, Severe Thunderstorm Watch — issued by the Storm Prediction Center against county FIPS codes) *and* all zone-based alerts mapped to that county.
+
+Per the official NWS Geolocation primer (weather.gov/media/documentation/docs/NWS_Geolocation.pdf): *"county based alerts are not mapped to zones... requests such as `?zone=NDZ039` will not contain county-based products."*
+
+**The bug:** Prior to this fix, the Worker queried alerts using `NWS_ALERT_ZONE` (`NDZ039`, the forecast zone). This meant Tornado Watches and Severe Thunderstorm Watches — arguably the two most operationally important alert types for a fire station display — were silently never returned by the API, regardless of whether one was active. This went undetected until a live Tornado Watch failed to appear on the display in June 2026.
+
+**The fix:** Alert queries were switched to use `NWS_COUNTY_CODE` (`NDC017`, the Cass County zone), which returns the full set of applicable alerts — both county-based and zone-based — for the station's location. `NWS_ALERT_ZONE` is retained in the code as a reference constant but is no longer used in any fetch call.
+
+**Secondary fix (same change):** The alert processing logic previously discarded any alert whose `expires` field was null, with no fallback. Some SPC-issued products populate `ends` instead of `expires`. The processing logic was updated to fall back to `ends` when `expires` is absent, preventing valid alerts from being silently dropped.
+
+**Note on display ordering:** Alerts are sorted by NWS `severity` field only (Extreme → Severe → Moderate → Minor). Tornado Watch and Severe Thunderstorm Warning are both assigned "Severe" severity by NWS, so when both are active they are treated as tied and displayed in API return order rather than by alert type. This is intentional and matches NWS's own severity classification — it is not a bug. A secondary sort by `urgency` (Immediate vs. Future) could be added in the future if a different ordering is preferred, but has not been implemented.
+
+This same zone-vs-county issue and fix also applies to the calendar-display Worker's weather integration — see Section 7.6.1.
+
 ## 10.7 AirNow API Key
+
 
 The AIRNOW_API_KEY secret must be set in the Cloudflare dashboard for both the production and staging workers. Register for a free key at docs.airnowapi.org. If the key is missing or the AirNow API is unavailable, the AQI badge is silently omitted and all other weather data renders normally.
 
@@ -995,6 +1020,7 @@ Note: [www.dot.nd.gov](http://www.dot.nd.gov), usgs-nims-images.s3.amazonaws.com
 |Probationary firefighter photo does not load     |Drive permissions or file not found                                                     |Verify the Drive folder is shared with the service account email. Verify the Photo column filename matches the Drive filename. Check Cloudflare Worker logs for errors.                                                                                                                                                         |
 |Probationary firefighter display shows no content|No firefighters hired within the past 365 days                                          |Check that hire dates are in YYYY-MM-DD format. Verify the sheet is shared with the service account email.                                                                                                                                                                                                                      |
 |Department news shows “No current news”          |No active items in the sheet tab for this station                                       |Check the relevant tab in the Google Sheet. Verify Posted and Expires dates are correct and items are not expired.                                                                                                                                                                                                              |
+|Tornado Watch or Severe Thunderstorm Watch not showing as an alert banner|Pre-June-2026 code querying NWS by forecast zone instead of county zone (fixed — see Sections 10.6.1 / 7.6.1)|Confirm the deployed Worker is running code from main after the June 2026 fix. If still missing, verify NWS_COUNTY_CODE (NDC017) is used in the alert fetch URL, not NWS_ALERT_ZONE.                                                                                                                            |
 |Weather radar map is white or partially loaded   |Leaflet map initialization timing issue on Pi hardware                                  |This is a known intermittent issue. The display refreshes automatically and typically self-resolves on the next cycle.                                                                                                                                                                                                          |
 |Weather display shows no AQI badge               |AIRNOW_API_KEY missing or AirNow API unavailable                                        |Check that AIRNOW_API_KEY is set in the Cloudflare dashboard for weather-display. The badge is silently omitted when unavailable.                                                                                                                                                                                               |
 |UptimeRobot shows a Worker as down               |Worker returning non-200 status or timing out                                           |Load the /healthz URL directly in a browser. If it returns “status: healthy”, the alert may have been a transient blip. If it returns “status: degraded”, check the detail lines — for calendar-display, “nextcloud: authentication failed” points directly to Section 7.11. Otherwise check Cloudflare Worker logs for details.|
