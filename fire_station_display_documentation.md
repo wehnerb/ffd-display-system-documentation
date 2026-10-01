@@ -2,7 +2,7 @@
 
 *Technical Reference Guide for Department Staff, Administrators, and IT Support*
 
-Last Updated: June 29, 2026
+Last Updated: October 1, 2026
 
 Maintained by: Brandon Wehner
 
@@ -524,7 +524,7 @@ The ?layout= parameter controls which design is rendered. wide and full use the 
 
 **Note:** SHOW_WEATHER is currently set to false in src/index.js. The weather integration described in steps 2 and in Section 7.7 is fully implemented in the code but is currently disabled. It was disabled after the standalone weather-display worker was deployed. To re-enable, set SHOW_WEATHER = true and deploy.
 
-1. The raw ICS text is fetched server-side from Nextcloud using HTTP Basic authentication with a Nextcloud app password. The display browser never contacts Nextcloud directly. Windows timezone names emitted by Exchange (e.g. “Central Standard Time”) are automatically mapped to IANA timezone identifiers.
+1. The raw ICS text is fetched server-side from Nextcloud using HTTP Basic authentication with a Nextcloud app password. The display browser never contacts Nextcloud directly. Windows timezone names emitted by Exchange (e.g. “Central Standard Time”) are automatically mapped to IANA timezone identifiers. Only events that fall within the displayed days (plus a one-day buffer) are fully parsed; the rest of the 30-day export is skipped early to save CPU time (see Section 7.12).
 1. Filter rules are applied, a self-contained HTML page is rendered, stored in the Workers Cache API for CACHE_SECONDS (default 15 minutes), and returned to the display.
 
 ## 7.5 Automatic Calendar Update System
@@ -538,7 +538,7 @@ Full setup instructions for rebuilding this system on a new computer are in U:\F
 
 ## 7.6 Configuration
 
-Key constants in src/index.js: DAYS_TO_SHOW (default 6), CACHE_SECONDS (default 900 = 15 minutes), CACHE_VERSION (increment to bust all cached pages immediately), FILTER_EXACT, FILTER_CONTAINS, ALLDAY_COLORS. NWS constants: NWS_OFFICE (FGF), NWS_GRID_X (65), NWS_GRID_Y (57), NWS_ALERT_ZONE (NDZ039 — Cass County ND forecast zone, retained for reference only), NWS_COUNTY_CODE (NDC017 — Cass County ND county zone, used for all alert queries — see Section 7.6.1), SHOW_WEATHER (boolean to enable/disable all weather fetches).
+Key constants in src/index.js: DAYS_TO_SHOW (default 6), CACHE_SECONDS (default 900 = 15 minutes), CACHE_VERSION (increment to bust all cached pages immediately), FILTER_EXACT, FILTER_CONTAINS, ALLDAY_COLORS. NWS constants: NWS_OFFICE (FGF), NWS_GRID_X (65), NWS_GRID_Y (57), NWS_ALERT_ZONE (NDZ039 — Cass County ND forecast zone, retained for reference only), NWS_COUNTY_CODE (NDC017 — Cass County ND county zone, used for all alert queries — see Section 7.6.1), SHOW_WEATHER (boolean to enable/disable all weather fetches). Internal constant: ICS_WINDOW_BUFFER_DAYS (default 1 — extra days kept on each side of the displayed days when skipping out-of-range calendar events; not normally edited — see Section 7.12).
 
 ## 7.6.1 NWS Alert Geolocation: Zone vs. County (June 2026 Fix)
 
@@ -570,7 +570,7 @@ To force an immediate cache refresh: increment CACHE_VERSION in src/index.js by 
 
 ## 7.10 Health Check Behavior
 
-The /healthz endpoint probes both api.weather.gov (NWS reachability) and the Nextcloud WebDAV URL before reporting status.
+The /healthz endpoint probes the Nextcloud WebDAV URL before reporting status. It also probes api.weather.gov (NWS reachability), but only when SHOW_WEATHER is true. While SHOW_WEATHER is false, the NWS probe is skipped and /healthz reports “nws: skipped (SHOW_WEATHER is false)”, so an NWS outage cannot mark the calendar as degraded when weather is not being used. Setting SHOW_WEATHER back to true resumes the NWS probe automatically with no other change.
 
 The Nextcloud probe distinguishes between three outcomes:
 
@@ -595,6 +595,56 @@ If UptimeRobot reports calendar-display as degraded with “nextcloud: authentic
 No redeployment is required — secret changes take effect on the next request. Because the error page is served with Cache-Control: no-store, there is no stale cached error to clear; the display will recover on its next refresh cycle (within CACHE_SECONDS, default 15 minutes, since a fresh page is rendered and re-cached only on success).
 
 **Note:** Updating the GitHub repository secrets does not affect this Worker. NEXTCLOUD_PASSWORD, NEXTCLOUD_USERNAME, and NEXTCLOUD_URL are Cloudflare Worker secrets only — they are read directly by the Worker via env at runtime and are never referenced by deploy.yml or any GitHub Actions step. The Cloudflare dashboard is the only place these three secrets need to be updated.
+
+## 7.12 CPU Time Budget & October 2026 Optimization
+
+**Background.** Cloudflare's Workers Free plan allows 10 ms of CPU time per request. CPU time is time spent computing; it does not include time spent waiting on network requests such as the Nextcloud fetch. On October 1, 2026, Cloudflare emailed a “Workers CPU limit exceeded” notice reporting that the Free-plan limit had been hit at least 100 times in the previous 24 hours. According to Cloudflare's documentation, a Worker that exceeds the limit returns Error 1102 to the client. The Metrics page for calendar-display nevertheless showed 0 “Exceeded CPU Time Limits” errors during that period; the reason for that mismatch is not known.
+
+**Diagnosis.** calendar-display was the only Worker clearly over the limit, with a P90 CPU time of roughly 54 ms (its own Metrics page, last 24 hours) to 70 ms (Cloudflare's all-Workers view), and a P99 of about 106 ms. Every other Worker was between 1 and 9 ms (P90), several of them close to the limit. The page cache is kept separately in each Cloudflare data center, so each data center that serves a display rebuilds the page once per CACHE_SECONDS. These rebuilds (cache misses) were roughly 10–15% of requests (estimate from Oct 1 metrics); the other requests were cache hits costing about 1 ms. On every cache miss the Worker downloads and parses the full ICS export (about 45 KB and 147 events at the time of diagnosis) and renders the page. Code review found two likely causes, confirmed only by the before/after measurements below: (1) Intl.DateTimeFormat objects, which are expensive to construct, were being built repeatedly (per event and per displayed day), and (2) every event in the 30-day export was fully parsed even though only DAYS_TO_SHOW days are displayed. The contribution of each individual change was not measured separately.
+
+**What changed.** Deployed to main on October 1, 2026 (CACHE_VERSION raised from 24 to 25 so all cached pages were rebuilt):
+
+- **Reused date formatters.** The date and time formatters are created once when the Worker loads (module-level `FMT_*` constants) and reused. Timezone formatters used for converting ICS times are cached by `getZonePartsFormatter()`.
+- **Date-windowed ICS parsing.** `parseIcs()` now receives a date window (the displayed days plus `ICS_WINDOW_BUFFER_DAYS`, default 1). Using only the raw date text at the start of each event's DTSTART/DTEND, events entirely outside the window are skipped before any timezone conversion or text unescaping. Multi-day all-day events that began before the window but run into it are kept. An event whose raw date cannot be read is always kept so the full parser decides about it.
+- **Per-day event lookup.** `getEventsForDate()` now reuses the Central-time date string computed when each event was parsed instead of re-formatting every event for every displayed day.
+- **Health check.** The NWS probe in /healthz runs only when SHOW_WEATHER is true (see Section 7.10).
+
+The rendered page is unchanged. Before deployment the old and new code produced identical HTML in 72 test renders (synthetic 147-event calendar, four layouts, clock times including midnight and daylight-saving boundaries).
+
+**The 30-day export window is intentional and must not be shortened.** The Outlook macro exports the next 30 days so the ICS file stays current even while the person who maintains it is away (see Section 7.5). The Worker now skips out-of-range events itself, so the export window does not need to be reduced to control CPU time.
+
+**Results so far.**
+
+|**Measurement**                                  |**Before (Sep 30 – Oct 1, 2026)**                            |**After (first hours on main, Oct 1, 2026)**|
+|-------------------------------------------------|-------------------------------------------------------------|--------------------------------------------|
+|P90 CPU time per time bucket                     |About 54 ms (Worker Metrics) to 70 ms (all-Workers view)     |Peak 9.93 ms; most buckets 5–7 ms           |
+|P99 CPU time                                     |About 106 ms                                                 |Not yet established                         |
+|“Exceeded CPU Time Limits” errors shown in Metrics|0                                                            |0                                           |
+|Cloudflare “CPU limit exceeded” email            |Received October 1, 2026 (at least 100 occurrences in 24 h)  |Pending — see Status                        |
+
+A staging test in which nearly every request was forced to be a cache miss (using ?bg=dark) showed a legend P90 of 9.21 ms but a chart point of 12.43 ms for one time bucket, so some cache misses can still exceed 10 ms.
+
+**Status (as of October 1, 2026): deployed, monitoring in progress.** Treat the issue as resolved only when (1) no further Cloudflare CPU-limit emails arrive for several days and (2) P99 and the highest values for the current version stay under 10 ms. Record the final outcome in this section. Still unexplained: why the notice first arrived on October 1 when the code had not changed in about a month. Possible causes, none verified, are a change in the ICS file (size, event count, or timestamp format), a change in how many requests were cache misses, or a change on Cloudflare's side in notification or measurement. Checking the 30-day CPU Time chart on the production Metrics page would show whether CPU time stepped up on a particular date.
+
+**Contingency if CPU limit errors continue (not implemented or tested).** An event's end time (DTEND) is only needed to hide events that have already ended on the current day, so DTEND could be parsed only for events that start today. This would remove roughly half of the remaining timezone conversions.
+
+**Reading the CPU Time charts.**
+
+- **P90** is the 90th percentile: within a time bucket, 90% of requests used that much CPU time or less, and the slowest 10% used more. The 10 ms limit applies to each individual request, so P90 alone can understate the problem. Watch P99, P999, and the highest values on the chart.
+- Because most requests are cache hits (about 1 ms), P90 swings with the share of cache misses in each bucket. A low P90 does not by itself prove that cache misses are under the limit.
+- When checking a change, use the version dropdown on the Metrics page to select only the newest version. Otherwise the chart mixes old and new code.
+- The legend values can differ from individual chart points. Hover over the chart for the actual value of each bucket and use the highest as the conservative figure.
+- Requests with ?bg=dark bypass the page cache entirely, so loading the staging URL with that parameter several times exercises the expensive cache-miss path. These requests do not write to the cache, so they slightly understate a real cache miss.
+
+**Rules for future changes to this Worker.**
+
+1. Create Intl.DateTimeFormat objects once at module level; never inside a function that runs per event or per request.
+2. Filter or skip data before doing expensive work on it (parsing, timezone conversion, regular expressions).
+3. Keep /healthz light; it is not cached and is requested every 5 minutes by UptimeRobot.
+4. Before merging any change to the parse or render path, load the staging URL with ?bg=dark several times and compare CPU Time for the staging version against the figures above.
+5. Increment CACHE_VERSION when the rendered output changes (Section 7.9).
+
+The system is designed to stay within the Cloudflare Workers Free plan. Moving to a paid plan raises the limit but is not currently in use; reducing per-request work comes first.
 
 # 8. Project: Probationary Firefighter Display
 
@@ -1016,6 +1066,7 @@ Note: [www.dot.nd.gov](http://www.dot.nd.gov), usgs-nims-images.s3.amazonaws.com
 |River gauge shows error page                     |NOAA API temporarily unavailable                                                        |The page retries automatically every 60 seconds. Check api.water.noaa.gov directly if persistent.                                                                                                                                                                                                                               |
 |Slides cycling at wrong speed                    |Slide count API call failing or secrets missing                                         |Check Cloudflare Worker logs. Verify GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY are present in the Cloudflare dashboard for slide-timing-proxy.                                                                                                                                                                        |
 |Calendar shows “CALENDAR UNAVAILABLE”            |Nextcloud app password expired/revoked, ICS file empty/missing, or Nextcloud unreachable|Check /healthz for calendar-display first — if it reports “nextcloud: authentication failed,” rotate the Nextcloud app password (Section 7.11). If /healthz is healthy, check Cloudflare Worker logs for the specific fetch error and verify the ICS file exists in Nextcloud.                                                  |
+|Cloudflare emails “Workers CPU limit exceeded,” or a page shows Cloudflare Error 1102|A Worker used more than the Free plan’s 10 ms of CPU time on a request. As of October 2026 the most likely source is a calendar-display cache miss|See Section 7.12. In Cloudflare, open the Worker → Metrics, filter to the newest version, and check CPU Time (P99 and highest values) and Errors by invocation status (“Exceeded CPU Time Limits”). The system is designed to stay on the Free plan, so reduce per-request work first.|
 |Calendar shows no weather data                   |NWS API temporarily unavailable                                                         |The calendar renders without weather rather than showing an error. Typically self-resolves.                                                                                                                                                                                                                                     |
 |Probationary firefighter photo does not load     |Drive permissions or file not found                                                     |Verify the Drive folder is shared with the service account email. Verify the Photo column filename matches the Drive filename. Check Cloudflare Worker logs for errors.                                                                                                                                                         |
 |Probationary firefighter display shows no content|No firefighters hired within the past 365 days                                          |Check that hire dates are in YYYY-MM-DD format. Verify the sheet is shared with the service account email.                                                                                                                                                                                                                      |
@@ -1045,6 +1096,7 @@ All 8 Workers are monitored via UptimeRobot at 5-minute intervals. Each monitor 
 |**Service**                        |**Free Tier Limit**               |**Est. Daily Usage (8 stations)**                                          |**Where to Check**                                    |
 |-----------------------------------|----------------------------------|---------------------------------------------------------------------------|------------------------------------------------------|
 |Cloudflare Workers (combined total)|100,000 req/day                   |~30,000–70,000 req/day (varies by layout and cache hit rate)               |dash.cloudflare.com → Workers & Pages → Overview      |
+|Cloudflare Workers CPU time (per request)|10 ms per request (Free plan)|calendar-display cache misses: peak P90 9.93 ms on Oct 1, 2026 after the optimization (was ~54 ms); cache hits ~1 ms. Other Workers were 1–9 ms (P90) on Oct 1, 2026, several close to the limit|dash.cloudflare.com → Workers & Pages → (Worker) → Metrics → CPU Time|
 |Google Slides API                  |300 req/minute                    |At most 1 request per hour per cache version                               |console.cloud.google.com → APIs & Services → Dashboard|
 |Google Sheets API                  |300 req/minute per project        |Low — edge-cached to limit calls                                           |console.cloud.google.com → APIs & Services → Dashboard|
 |Google Drive API                   |1,000 req/100 seconds             |Low — one listing call per Worker request, results edge-cached             |console.cloud.google.com → APIs & Services → Dashboard|
