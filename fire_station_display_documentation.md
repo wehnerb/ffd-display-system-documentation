@@ -2,7 +2,7 @@
 
 *Technical Reference Guide for Department Staff, Administrators, and IT Support*
 
-Last Updated: October 1, 2026
+Last Updated: October 5, 2026
 
 Maintained by: Brandon Wehner
 
@@ -613,20 +613,21 @@ The rendered page is unchanged. Before deployment the old and new code produced 
 
 **The 30-day export window is intentional and must not be shortened.** The Outlook macro exports the next 30 days so the ICS file stays current even while the person who maintains it is away (see Section 7.5). The Worker now skips out-of-range events itself, so the export window does not need to be reduced to control CPU time.
 
-**Results so far.**
+**Results (October 1 – 5, 2026).**
 
-|**Measurement**                                  |**Before (Sep 30 – Oct 1, 2026)**                            |**After (first hours on main, Oct 1, 2026)**|
+|**Measurement**                                  |**Before (Sep 30 – Oct 1, 2026)**                            |**After (Oct 1 – Oct 5, 2026; 4.89k requests)**|
 |-------------------------------------------------|-------------------------------------------------------------|--------------------------------------------|
-|P90 CPU time per time bucket                     |About 54 ms (Worker Metrics) to 70 ms (all-Workers view)     |Peak 9.93 ms; most buckets 5–7 ms           |
-|P99 CPU time                                     |About 106 ms                                                 |Not yet established                         |
+|P90 CPU time                                     |About 54 ms (Worker Metrics) to 70 ms (all-Workers view)     |3.99 ms for the period (one early 15-minute bucket on Oct 1 reached 9.93 ms)|
+|P99 CPU time                                     |About 106 ms                                                 |9.98 ms for the period; highest hourly values reviewed were 16.1 ms (Oct 2, 07:00) and 15.05 ms (deployment hour)|
+|P999 CPU time                                    |Not recorded                                                 |12.5 ms for the period; highest hourly values reviewed were 15.7–17.8 ms|
 |“Exceeded CPU Time Limits” errors shown in Metrics|0                                                            |0                                           |
-|Cloudflare “CPU limit exceeded” email            |Received October 1, 2026 (at least 100 occurrences in 24 h)  |Pending — see Status                        |
+|Cloudflare “CPU limit exceeded” email            |Received October 1, 2026 (at least 100 occurrences in 24 h)  |None received through October 5, 2026       |
 
 A staging test in which nearly every request was forced to be a cache miss (using ?bg=dark) showed a legend P90 of 9.21 ms but a chart point of 12.43 ms for one time bucket, so some cache misses can still exceed 10 ms.
 
-**Status (as of October 1, 2026): deployed, monitoring in progress.** Treat the issue as resolved only when (1) no further Cloudflare CPU-limit emails arrive for several days and (2) P99 and the highest values for the current version stay under 10 ms. Record the final outcome in this section. Still unexplained: why the notice first arrived on October 1 when the code had not changed in about a month. Possible causes, none verified, are a change in the ICS file (size, event count, or timestamp format), a change in how many requests were cache misses, or a change on Cloudflare's side in notification or measurement. Checking the 30-day CPU Time chart on the production Metrics page would show whether CPU time stepped up on a particular date.
+**Status (as of October 5, 2026): resolved.** Over the first four days on main (4.89k requests, version a30e23d9) there were no Cloudflare CPU-limit emails, 0 errors, 0 “Exceeded CPU Time Limits,” and all station displays were checked and showed the calendar correctly. CPU time is about 14 times lower at P90 and about 10 times lower at P99 than before the change. A small share of requests (about 1%, mostly page-cache rebuilds) still uses about 10 ms of CPU time or more, with occasional peaks of 15–18 ms; none of these produced an error, a failed page, or a Cloudflare email during the review period. The issue is considered closed. It should be reopened only if Cloudflare sends another “Workers CPU limit exceeded” email; in that case start with Section 13.3 and the options below. The reason the notice first arrived on October 1, when the code had not changed in about a month, was not determined. Possible causes, none verified, are a change in the ICS file (size, event count, or timestamp format), a change in how many requests were cache misses, or a change on Cloudflare's side in notification or measurement.
 
-**Contingency if CPU limit errors continue (not implemented or tested).** An event's end time (DTEND) is only needed to hide events that have already ended on the current day, so DTEND could be parsed only for events that start today. This would remove roughly half of the remaining timezone conversions.
+**If the CPU-limit email returns (options not implemented or tested in production).** Local profiling of the current code (Node, not Cloudflare's runtime, so indicative only) showed the remaining cost is mostly in the ICS parser: stepping through every line of the full 30-day file was the largest single cost, followed by timezone conversion. Options, most to least promising: (1) locate each event's block in the raw text and check its start date before splitting and unfolding the whole file, so skipped events cost almost nothing; (2) parse an event's end time (DTEND) only for events that start today, since it is needed only to hide events already finished today — this would remove only a small share of the remaining cost. In a local test, the first renders in a freshly started process were several times slower than later ones, which is consistent with the higher peaks seen after quiet periods (an inference, not verified on Cloudflare); this means the total work done per cache miss matters more than how fast the code runs once warm.
 
 **Reading the CPU Time charts.**
 
@@ -1096,7 +1097,7 @@ All 8 Workers are monitored via UptimeRobot at 5-minute intervals. Each monitor 
 |**Service**                        |**Free Tier Limit**               |**Est. Daily Usage (8 stations)**                                          |**Where to Check**                                    |
 |-----------------------------------|----------------------------------|---------------------------------------------------------------------------|------------------------------------------------------|
 |Cloudflare Workers (combined total)|100,000 req/day                   |~30,000–70,000 req/day (varies by layout and cache hit rate)               |dash.cloudflare.com → Workers & Pages → Overview      |
-|Cloudflare Workers CPU time (per request)|10 ms per request (Free plan)|calendar-display cache misses: peak P90 9.93 ms on Oct 1, 2026 after the optimization (was ~54 ms); cache hits ~1 ms. Other Workers were 1–9 ms (P90) on Oct 1, 2026, several close to the limit|dash.cloudflare.com → Workers & Pages → (Worker) → Metrics → CPU Time|
+|Cloudflare Workers CPU time (per request)|10 ms per request (Free plan)|calendar-display after the Oct 2026 optimization (Oct 1–5): P99 9.98 ms, P999 12.5 ms (was P99 ~106 ms); typical request ~1 ms. Other Workers were 1–9 ms (P90) on Oct 1, 2026, several close to the limit|dash.cloudflare.com → Workers & Pages → (Worker) → Metrics → CPU Time|
 |Google Slides API                  |300 req/minute                    |At most 1 request per hour per cache version                               |console.cloud.google.com → APIs & Services → Dashboard|
 |Google Sheets API                  |300 req/minute per project        |Low — edge-cached to limit calls                                           |console.cloud.google.com → APIs & Services → Dashboard|
 |Google Drive API                   |1,000 req/100 seconds             |Low — one listing call per Worker request, results edge-cached             |console.cloud.google.com → APIs & Services → Dashboard|
