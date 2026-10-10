@@ -2,7 +2,7 @@
 
 *Technical Reference Guide for Department Staff, Administrators, and IT Support*
 
-Last Updated: October 5, 2026
+Last Updated: October 10, 2026
 
 Maintained by: Brandon Wehner
 
@@ -531,7 +531,7 @@ The ?layout= parameter controls which design is rendered. wide and full use the 
 
 The calendar is kept current by a three-component system that runs automatically at login on the designated department computer:
 
-- **Outlook VBA macro** (ThisOutlookSession in the Outlook VBA editor): Runs automatically when Outlook opens. Exports the next 30 days of the FFD Calendar public folder to U:\Fire\BWehner\FFD Calendar Export\FFD Calendar Calendar.ics.
+- **Outlook VBA macro** (ThisOutlookSession in the Outlook VBA editor): Runs automatically when Outlook opens. Exports the next 30 days of the FFD Calendar public folder to U:\Fire\BWehner\FFD Calendar Export\FFD Calendar Calendar.ics. Since October 2026 the macro builds the file in memory, writes it to a local temporary file, checks that it is complete, and copies it into place with automatic retries; any problem is written to export-error.log in the same folder (see Section 7.13).
 - **Nextcloud desktop app**: Syncs the FFD Calendar Export folder to Nextcloud automatically. The file is typically synced within seconds of the macro writing it.
 
 Full setup instructions for rebuilding this system on a new computer are in U:\Fire\BWehner\FFD Calendar Export\FFD Calendar Export Setup.txt.
@@ -564,7 +564,7 @@ FILTER_EXACT and FILTER_CONTAINS control which events are hidden. ALLDAY_COLORS 
 
 ## 7.9 Manual Calendar Update
 
-To update the calendar outside of a normal login: open Outlook, open the VBA editor (Developer tab → Visual Basic), click anywhere inside Application_Startup, and press F5. The Nextcloud desktop app will sync the updated file automatically within seconds.
+To update the calendar outside of a normal login: open Outlook, open the VBA editor (Developer tab → Visual Basic), click on a line inside the body of the Application_Startup procedure (for example the “Dim strIcs As String” line, not the comment block at the top of the module), and press F5. If F5 opens an empty list of macros instead of running the export, the cursor is not inside the procedure. The Nextcloud desktop app will sync the updated file automatically within seconds.
 
 To force an immediate cache refresh: increment CACHE_VERSION in src/index.js by 1, deploy to staging, test, and merge to main.
 
@@ -646,6 +646,63 @@ A staging test in which nearly every request was forced to be a cache miss (usin
 5. Increment CACHE_VERSION when the rendered output changes (Section 7.9).
 
 The system is designed to stay within the Cloudflare Workers Free plan. Moving to a paid plan raises the limit but is not currently in use; reducing per-request work comes first.
+
+## 7.13 Outlook Export Macro: Lock Errors and Truncated Exports (October 2026 Fix)
+
+**Symptom.** On October 6, 2026 the exported ICS file, and therefore the displays, had no events after October 9, even though the Outlook calendar had many later events.
+
+**Cause.** The ICS file was incomplete. It ended in the middle of a line (the end time of an October 9 event), had 35 BEGIN:VEVENT lines but only 34 END:VEVENT lines, and had no END:VCALENDAR line. The macro writes events in date order, so everything after the point where the write stopped was missing. The macro's error log (export-error.log) recorded the Windows error “another process has locked a portion of the file” (Automation error -2147024863) at 07:42:22 that morning, and the same error on August 28, September 4, September 17, October 5, and October 6, 2026. The macro had not been modified since it was installed (February/March 2026); on October 6 the macro running in Outlook was compared with the saved copy of its source and the two matched. The original macro wrote the file one line at a time directly inside the folder watched by the Nextcloud desktop app. The most likely explanation (an inference, not confirmed) is that the sync app or antivirus opened the file while it was being written. Which program was responsible was not determined, and neither was why the errors began in late August.
+
+**Why the displays did not show an error.** The calendar-display Worker reads whatever the file contains. It ignores an event that is cut off, and it has no check for a complete file, so an incomplete export silently shortens the calendar instead of producing an error page. The macro runs only when Outlook starts, so an incomplete file stays in place until Outlook is next started or the export is run by hand (Section 7.9).
+
+**The fix (macro rewritten October 2026).** The ICS content and the 30-day export window are unchanged, so the Worker needed no change. The macro now:
+
+1. Reads the Outlook calendar and builds the entire ICS text in memory, without touching the synced folder.
+2. Writes the text to a temporary file in the local Windows temp folder, which the sync app does not watch.
+3. Checks the temporary file is complete: it ends with END:VCALENDAR and every BEGIN:VEVENT has a matching END:VEVENT.
+4. Copies the checked file over the export file in a single operation. If the copy fails (for example the file is locked) or the result is not the expected size, it waits and tries again.
+5. Leaves the existing export untouched if fewer than the minimum number of events were found, so an empty read of the calendar can never blank the displays.
+6. Writes every failure, and every retry that was needed, to export-error.log, including which step was running.
+
+Settings at the top of the macro:
+
+|**Constant**           |**Value**              |**Purpose**                                                                              |
+|-----------------------|-----------------------|-----------------------------------------------------------------------------------------|
+|EXPORT_PATH            |U:\Fire\BWehner\FFD Calendar Export\FFD Calendar Calendar.ics|Where the finished ICS file is placed (synced to Nextcloud).|
+|ERROR_LOG_PATH         |U:\Fire\BWehner\FFD Calendar Export\export-error.log|Log of errors, retries, and recoveries.|
+|DAYS_AHEAD             |30                     |Days of calendar exported. Intentional; must not be shortened (Section 7.12).            |
+|MIN_EXPECTED_EVENTS    |1                      |Fewer events than this and the existing export file is left unchanged.                   |
+|MAX_COPY_ATTEMPTS      |5                      |Number of tries to copy the finished file into place.                                    |
+|RETRY_DELAY_MS         |4000                   |Wait between tries, in milliseconds (4 seconds).                                         |
+|TEMP_FILE_NAME         |FFD_Calendar_Export.tmp|Name of the temporary file in the local Windows temp folder.                             |
+
+If every retry fails, Outlook is unresponsive for about 16 seconds during startup (four waits of four seconds). The macro's old header comment mentioned rclone and Google Drive; that was out of date and has been corrected. The file is synced by the Nextcloud desktop app (Section 7.5).
+
+**Reading export-error.log.**
+
+- **ERROR** means the export failed. The message names the step that was running. If the failure happened while copying the file into place, the export file may be incomplete, and the message gives the path of a complete temporary copy that can be copied over the export file by hand.
+- **WARNING** means one copy attempt failed (usually a temporary lock) and the macro is waiting to retry.
+- **OK ... after a temporary lock** means the export succeeded on a retry. This shows the fix working and needs no action.
+- No new entries means the export ran without problems.
+
+**Checking that an export is healthy.** Open the ICS file in Notepad and press Ctrl+End: the last line must be END:VCALENDAR. Searching the file for BEGIN:VEVENT shows how many events it contains. Check export-error.log for new ERROR lines.
+
+**Installing or changing the macro.**
+
+1. Back up the current macro source (a saved .txt copy) and, with Outlook closed, the VbaProject.OTM file.
+2. In Outlook press Alt+F11, expand Project1 (VbaProject.OTM), then Microsoft Outlook Objects, and double-click ThisOutlookSession. Select all existing code and replace it with the new macro source.
+3. Choose Debug → Compile VBAProject. Fix any error it highlights. Save the project.
+4. Run the export by hand (Section 7.9). Confirm export-error.log has no new ERROR lines, the ICS file ends with END:VCALENDAR, the event count looks right, and the Nextcloud app has synced it.
+5. Close and reopen Outlook to confirm the export also runs automatically at startup.
+6. Keep a reference copy of the macro source as a .txt file in the FFD Calendar Export folder. The setup instructions in that folder (FFD Calendar Export Setup.txt) should match the current macro.
+
+**Status (as of October 10, 2026): fix installed and working.** After installation the macro ran at Outlook startup with no errors and the ICS file updated. The lock errors were intermittent (about five in six weeks), so a short test period cannot prove they are gone. The retry logic is designed to absorb them and logs a WARNING when it does. Reopen this item if export-error.log shows an ERROR entry, or the calendar is again missing events.
+
+**Known limitations (accepted).**
+
+- If all copy attempts fail, the export file can be left incomplete and nobody is alerted automatically; the log must be checked.
+- The Worker does not check the ICS file for completeness. A Worker-side check (reject an incomplete file and keep showing the last good page) was considered and not implemented, because the macro fix addresses the cause. If incomplete exports recur, this is the next step.
+- The export runs only when Outlook starts or when run by hand. This is unchanged.
 
 # 8. Project: Probationary Firefighter Display
 
@@ -1068,6 +1125,7 @@ Note: [www.dot.nd.gov](http://www.dot.nd.gov), usgs-nims-images.s3.amazonaws.com
 |Slides cycling at wrong speed                    |Slide count API call failing or secrets missing                                         |Check Cloudflare Worker logs. Verify GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY are present in the Cloudflare dashboard for slide-timing-proxy.                                                                                                                                                                        |
 |Calendar shows “CALENDAR UNAVAILABLE”            |Nextcloud app password expired/revoked, ICS file empty/missing, or Nextcloud unreachable|Check /healthz for calendar-display first — if it reports “nextcloud: authentication failed,” rotate the Nextcloud app password (Section 7.11). If /healthz is healthy, check Cloudflare Worker logs for the specific fetch error and verify the ICS file exists in Nextcloud.                                                  |
 |Cloudflare emails “Workers CPU limit exceeded,” or a page shows Cloudflare Error 1102|A Worker used more than the Free plan’s 10 ms of CPU time on a request. As of October 2026 the most likely source is a calendar-display cache miss|See Section 7.12. In Cloudflare, open the Worker → Metrics, filter to the newest version, and check CPU Time (P99 and highest values) and Errors by invocation status (“Exceeded CPU Time Limits”). The system is designed to stay on the Free plan, so reduce per-request work first.|
+|Calendar is missing events within the displayed days, or the ICS file ends partway through an event|The Outlook export did not finish writing the file (for example the file was locked while it was being replaced). The Worker uses whatever the file contains and does not detect an incomplete file|Open export-error.log in the FFD Calendar Export folder and look for ERROR lines. Open the ICS file in Notepad: the last line must be END:VCALENDAR. Re-run the export (Section 7.9), then confirm the file and a display. If the log gives the path of a complete temporary copy, that file can be copied over the export file by hand. See Section 7.13.|
 |Calendar shows no weather data                   |NWS API temporarily unavailable                                                         |The calendar renders without weather rather than showing an error. Typically self-resolves.                                                                                                                                                                                                                                     |
 |Probationary firefighter photo does not load     |Drive permissions or file not found                                                     |Verify the Drive folder is shared with the service account email. Verify the Photo column filename matches the Drive filename. Check Cloudflare Worker logs for errors.                                                                                                                                                         |
 |Probationary firefighter display shows no content|No firefighters hired within the past 365 days                                          |Check that hire dates are in YYYY-MM-DD format. Verify the sheet is shared with the service account email.                                                                                                                                                                                                                      |
