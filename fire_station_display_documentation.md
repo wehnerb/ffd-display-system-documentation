@@ -2,7 +2,7 @@
 
 *Technical Reference Guide for Department Staff, Administrators, and IT Support*
 
-Last Updated: October 10, 2026
+Last Updated: November 17, 2026
 
 Maintained by: Brandon Wehner
 
@@ -25,16 +25,17 @@ Maintained by: Brandon Wehner
 - [8. Project: Probationary Firefighter Display](#8-project-probationary-firefighter-display)
 - [9. Project: Department News Display](#9-project-department-news-display)
 - [10. Project: Weather Display](#10-project-weather-display)
-- [11. Shared Utilities](#11-shared-utilities)
-- [12. Deployment & Maintenance Workflow](#12-deployment--maintenance-workflow)
-- [13. IT Support Reference](#13-it-support-reference)
-- [14. Planned Enhancements](#14-planned-enhancements)
+- [11. Project: Newsletter Slides Display](#11-project-newsletter-slides-display)
+- [12. Shared Utilities](#12-shared-utilities)
+- [13. Deployment & Maintenance Workflow](#13-deployment--maintenance-workflow)
+- [14. IT Support Reference](#14-it-support-reference)
+- [15. Planned Enhancements](#15-planned-enhancements)
 
 # 1. System Overview
 
 ## 1.1 Purpose
 
-The Fire Station Display Board system is a set of digital display screens deployed throughout the fire station that provide firefighters with real-time and regularly updated operational information. Content displayed includes traffic camera feeds, river gauge levels and hydrographs, Google Slides presentations with department announcements, rotating safety messages, a station calendar with weather data, a probationary firefighter spotlight, department and station-specific news, and a full weather display with animated radar.
+The Fire Station Display Board system is a set of digital display screens deployed throughout the fire station that provide firefighters with real-time and regularly updated operational information. Content displayed includes traffic camera feeds, river gauge levels and hydrographs, Google Slides presentations with department announcements, rotating safety messages, a station calendar with weather data, a probationary firefighter spotlight, department and station-specific news, a full weather display with animated radar, and newsletter slide images that start and expire automatically on their own dates.
 
 The system was designed with two core constraints in mind:
 
@@ -64,7 +65,7 @@ Each Worker is deployed independently and has its own URL. A display screen is c
 |GitHub            |Source code storage and version control                       |Free                       |
 |GitHub Actions    |Automatic deployment pipeline to Cloudflare                   |Free                       |
 |Google Sheets API |Content storage for daily messages, news, and firefighter bios|Free (service account auth)|
-|Google Drive API  |Image storage for daily messages and firefighter photos       |Free (service account auth)|
+|Google Drive API  |Image storage for daily messages, firefighter photos, and newsletter slides       |Free (service account auth)|
 |Google Slides API |Slide count queries for the slide timing proxy                |Free (service account auth)|
 |Nextcloud WebDAV  |ICS calendar file delivery from Nextcloud to Worker           |Free (city infrastructure) |
 |NWS Public API    |Weather conditions, forecast, and alerts (no API key required)|Free / Public              |
@@ -72,7 +73,7 @@ Each Worker is deployed independently and has its own URL. A display screen is c
 |RainViewer API    |Animated radar tile data for the weather display              |Free / Public              |
 |NOAA NWPS API     |River gauge data (stage, flood thresholds, forecasts)         |Free / Public              |
 |ND DOT / USGS     |Traffic camera and river camera image sources                 |Free / Public              |
-|UptimeRobot       |Uptime monitoring for all 8 Workers with email alerts         |Free tier                  |
+|UptimeRobot       |Uptime monitoring for all 9 Workers with email alerts         |Free tier                  |
 
 # 2. Account & Access Guide
 
@@ -84,7 +85,7 @@ Each Worker is deployed independently and has its own URL. A display screen is c
 |GitHub      |github.com/wehnerb                                                          |All source code repositories and deployment workflows                      |
 |Google Cloud|console.cloud.google.com — [bwehner@fargond.gov](mailto:bwehner@fargond.gov)|Google Slides, Sheets, and Drive API access and service account credentials|
 |AirNow      |docs.airnowapi.org — [bwehner@fargond.gov](mailto:bwehner@fargond.gov)      |AirNow API key for weather display AQI data                                |
-|UptimeRobot |uptimerobot.com — [bwehner@fargond.gov](mailto:bwehner@fargond.gov)         |Uptime monitoring for all 8 Workers, email alerts on downtime              |
+|UptimeRobot |uptimerobot.com — [bwehner@fargond.gov](mailto:bwehner@fargond.gov)         |Uptime monitoring for all 9 Workers, email alerts on downtime              |
 
 ## 2.2 GitHub Repositories
 
@@ -98,37 +99,39 @@ Each Worker is deployed independently and has its own URL. A display screen is c
 |probationary-firefighter-display|probationary-firefighter-display.bwehner.workers.dev|Rotating probationary firefighter spotlight display         |
 |department-news-display         |department-news-display.bwehner.workers.dev         |Department-wide and station-specific news card display      |
 |weather-display                 |weather-display.bwehner.workers.dev                 |Full weather display with radar, conditions, and alerts     |
+|newsletter-slides-display       |newsletter-slides-display.bwehner.workers.dev       |Expiring newsletter slide images from a Drive folder, with automatic start and end dates|
 |ffd-station-display-utils       |(shared library — no Worker URL)                    |Shared design tokens, helpers, and utilities for all Workers|
 
 ## 2.3 GitHub Secrets Reference
 
-Each GitHub repository stores secrets that are injected into the Cloudflare Worker at deployment time. These are never exposed in code and must be set per repository under Settings → Secrets and variables → Actions.
+Each GitHub repository stores secrets that are injected into the Cloudflare Worker at deployment time. These are never exposed in code and must be set per repository under Settings → Secrets and variables → Actions. Which secrets GitHub pushes to Cloudflare automatically is decided by each repository’s .github/workflows/deploy.yml — see the Important box below the table.
 
 |**Secret Name**             |**Repository**                                                                  |**Description**                                                                                                                                                                                           |
 |----------------------------|--------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 |CLOUDFLARE_API_TOKEN        |All                                                                             |Cloudflare API token with Workers edit permissions                                                                                                                                                        |
 |CLOUDFLARE_ACCOUNT_ID       |All                                                                             |Cloudflare account ID (found on any zone page in dashboard)                                                                                                                                               |
-|GOOGLE_SERVICE_ACCOUNT_EMAIL|slide-timing-proxy only (GitHub)                                                |Service account email from Google Cloud JSON key file. Also required for daily-message-display, probationary-firefighter-display, department-news-display — set in Cloudflare dashboard for those workers.|
-|GOOGLE_PRIVATE_KEY          |slide-timing-proxy only (GitHub)                                                |Private key from Google Cloud JSON key file (include \n characters). Also required for daily-message-display, probationary-firefighter-display, department-news-display — set in Cloudflare dashboard.    |
-|GOOGLE_SHEET_ID             |daily-message-display, department-news-display, probationary-firefighter-display|The ID of the relevant Google Sheet. Found in the Sheet URL between /d/ and /edit. Set in Cloudflare dashboard for these workers.                                                                         |
-|GOOGLE_DRIVE_FOLDER_ID      |daily-message-display, probationary-firefighter-display                         |The ID of the Google Drive folder containing images. Found in the folder URL after /folders/. Set in Cloudflare dashboard.                                                                                |
+|GOOGLE_SERVICE_ACCOUNT_EMAIL|slide-timing-proxy, daily-message-display, newsletter-slides-display (GitHub)|Service account email from Google Cloud JSON key file. For daily-message-display and newsletter-slides-display, deploy.yml pushes it from the GitHub secret to Cloudflare on every deploy. Also required for probationary-firefighter-display and department-news-display — see the Important box below for where those store it.|
+|GOOGLE_PRIVATE_KEY          |slide-timing-proxy, daily-message-display, newsletter-slides-display (GitHub)|Private key from Google Cloud JSON key file (include \n characters). For daily-message-display and newsletter-slides-display, deploy.yml pushes it from the GitHub secret to Cloudflare on every deploy. Also required for probationary-firefighter-display and department-news-display — see the Important box below.|
+|GOOGLE_SHEET_ID             |daily-message-display, department-news-display, probationary-firefighter-display|The ID of the relevant Google Sheet. Found in the Sheet URL between /d/ and /edit. For daily-message-display it is a GitHub secret that deploy.yml pushes to Cloudflare on every deploy; for the other two Workers see the Important box below.|
+|GOOGLE_DRIVE_FOLDER_ID      |daily-message-display, probationary-firefighter-display, newsletter-slides-display|The ID of the Google Drive folder containing the images; each Worker uses its own folder. Found in the folder URL after /folders/. For daily-message-display and newsletter-slides-display it is a GitHub secret that deploy.yml pushes to Cloudflare on every deploy; for probationary-firefighter-display see the Important box below.|
 |PRESENTATION_ID             |slide-timing-proxy only                                                         |Google Slides presentation ID — the alphanumeric string between /d/ and /edit in the presentation URL.                                                                                                    |
 |PUBLISHED_ID                |slide-timing-proxy only                                                         |Google Slides published embed ID — the long string between /d/e/ and /pubembed in the File → Share → Publish to web embed URL.                                                                            |
 |NEXTCLOUD_URL               |calendar-display only                                                           |Full WebDAV URL to the ICS file on Nextcloud. Format: <https://fileshare.fargond.gov/remote.php/dav/files/USERNAME/FFD%20Calendar%20Export/FFD%20Calendar%20Calendar.ics>                                 |
 |NEXTCLOUD_USERNAME          |calendar-display only                                                           |Nextcloud login username (shown when creating an app password — not the display name).                                                                                                                    |
 |NEXTCLOUD_PASSWORD          |calendar-display only                                                           |Nextcloud app password. Generate at: Nextcloud → Settings → Security → Devices & sessions → Create new app password.                                                                                      |
 |AIRNOW_API_KEY              |weather-display only                                                            |AirNow API key for AQI data. Set in Cloudflare dashboard (not GitHub Actions). Register at docs.airnowapi.org. Free tier is sufficient.                                                                   |
+|WORKER_REPO_DISPATCH_TOKEN  |ffd-station-display-utils only                                                  |Fine-grained GitHub personal access token with actions: write and contents: write on every Worker repository. Used by notify-workers.yml to start each Worker’s utils sync (Section 12.4). Create it under GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens. Fine-grained tokens expire: note the expiration date, and when it passes (or a new Worker repository is added) update the token’s repository access or create a replacement and update the secret.|
 
 |**Where to Find These Secret Values**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 |-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 |CLOUDFLARE_API_TOKEN: Log in to dash.cloudflare.com, go to My Profile → API Tokens → Create Token. Use the “Edit Cloudflare Workers” template. Copy the generated token — it is only shown once.                                                                                                                                                                                                                                                                                                                                                                   |
 |CLOUDFLARE_ACCOUNT_ID: Log in to dash.cloudflare.com and go to Workers & Pages → Overview. The Account ID is displayed in the right sidebar.                                                                                                                                                                                                                                                                                                                                                                                                                       |
-|GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY: Log in to console.cloud.google.com and open the slide-timing project. Go to IAM & Admin → Service Accounts → slide-timing-worker → Keys → Add Key → Create new key (JSON). Download the JSON file. The client_email field is your GOOGLE_SERVICE_ACCOUNT_EMAIL and the private_key field is your GOOGLE_PRIVATE_KEY. Store the JSON file securely and delete it after copying the values into the Cloudflare dashboard.                                                                                       |
-|Note: river-level-display does not require any Google credentials. daily-message-display, probationary-firefighter-display, and department-news-display all use the same service account as slide-timing-proxy — set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY in the Cloudflare dashboard (Workers & Pages → [Worker Name] → Settings → Variables and Secrets) for each of those three workers. calendar-display uses Nextcloud WebDAV and does not require Google credentials. weather-display requires AIRNOW_API_KEY set in the Cloudflare dashboard.|
+|GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY: Log in to console.cloud.google.com and open the slide-timing project. Go to IAM & Admin → Service Accounts → slide-timing-worker → Keys → Add Key → Create new key (JSON). Download the JSON file. The client_email field is your GOOGLE_SERVICE_ACCOUNT_EMAIL and the private_key field is your GOOGLE_PRIVATE_KEY. Store the JSON file securely and delete it after copying the values into the GitHub repository secrets (and into the Cloudflare dashboard for any Worker whose deploy.yml does not push them).                                                                                       |
+|Note: river-level-display does not require any Google credentials. daily-message-display, probationary-firefighter-display, department-news-display, and newsletter-slides-display all use the same service account as slide-timing-proxy. For daily-message-display and newsletter-slides-display, set the values as GitHub repository secrets (deploy.yml pushes them to Cloudflare on every deploy). For the others, follow the Important box below: check deploy.yml, and set any secret it does not push in the Cloudflare dashboard (Workers & Pages → [Worker Name] → Settings → Variables and Secrets). calendar-display uses Nextcloud WebDAV and does not require Google credentials. weather-display requires AIRNOW_API_KEY set in the Cloudflare dashboard.|
 
-|**Important — Cloudflare Worker Secrets**                                                                                                                                                                                                                                                                                         |
+|**Important — Where Worker Secrets Are Stored**|
 |----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|After the first deployment of a new Worker environment (e.g. staging), the secrets must also be set in the Cloudflare dashboard under Workers & Pages → [Worker Name] → Settings → Variables and Secrets. GitHub Actions deploys the code but does not set secrets — they must be configured in the Cloudflare dashboard manually.|
+|How a Worker receives a secret depends on that repository’s .github/workflows/deploy.yml. A secret named in the secrets: list of deploy.yml is a GitHub repository secret that GitHub Actions pushes to the Worker in Cloudflare on every deploy. For those secrets GitHub is the source of truth: to change a value, update the GitHub secret and then re-run the latest deploy for both the staging and main branches. A change made only in the Cloudflare dashboard is overwritten by the next deploy. A secret that deploy.yml does not name (for example AIRNOW_API_KEY) must be set manually in the Cloudflare dashboard under Workers & Pages → [Worker Name] → Settings → Variables and Secrets, separately for the production Worker and its -staging counterpart. Confirmed in deploy.yml: daily-message-display and newsletter-slides-display push their GOOGLE_ secrets from GitHub. For every other Worker, open its deploy.yml to see which secrets it pushes.|
 
 ## 2.4 Transferring Ownership to a New Administrator
 
@@ -138,21 +141,24 @@ If a new person takes over maintenance of this system, the following steps must 
 
 1. Create a GitHub account for the new administrator if they do not have one.
 1. Go to github.com/wehnerb and transfer ownership of each repository to the new account under Settings → Danger Zone → Transfer ownership. Alternatively, add the new person as an owner of the organization.
-1. The new administrator must re-add all GitHub Secrets listed in Section 2.3 to each repository under their account.
+1. The new administrator must re-add all GitHub Secrets listed in Section 2.3 to each repository under their account. GitHub cannot display a stored secret, so the values must be collected again from their original sources (see “Where to Find These Secret Values”).
+1. The WORKER_REPO_DISPATCH_TOKEN fine-grained token belongs to the account that created it, so the new administrator must create a new one with actions: write and contents: write on all 9 Worker repositories and save it as a secret in ffd-station-display-utils.
 
 ### Step 2 — Cloudflare
 
 1. Log in to dash.cloudflare.com and go to Manage Account → Members.
 1. Add the new administrator’s email and assign the Administrator role.
 1. Create a new API token for the new administrator using the Edit Cloudflare Workers template and provide it to them for their GitHub secrets.
-1. In the Cloudflare dashboard, set the following secrets for each Worker that requires them (under Workers & Pages → [Worker Name] → Settings → Variables and Secrets): GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY for daily-message-display, probationary-firefighter-display, and department-news-display; GOOGLE_SHEET_ID and GOOGLE_DRIVE_FOLDER_ID for daily-message-display and probationary-firefighter-display; GOOGLE_SHEET_ID for department-news-display; AIRNOW_API_KEY for weather-display; NEXTCLOUD_URL, NEXTCLOUD_USERNAME, NEXTCLOUD_PASSWORD for calendar-display.
+1. For daily-message-display and newsletter-slides-display, the Google secrets come from GitHub: after the new administrator has set the GitHub secrets, re-run the latest deploy for the staging and main branches of each repository.
+1. In the Cloudflare dashboard, set every secret that a Worker’s deploy.yml does not push (under Workers & Pages → [Worker Name] → Settings → Variables and Secrets, for each Worker and its -staging counterpart). As previously configured these were: GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY for probationary-firefighter-display and department-news-display; GOOGLE_SHEET_ID and GOOGLE_DRIVE_FOLDER_ID for probationary-firefighter-display; GOOGLE_SHEET_ID for department-news-display; AIRNOW_API_KEY for weather-display; NEXTCLOUD_URL, NEXTCLOUD_USERNAME, NEXTCLOUD_PASSWORD for calendar-display. Confirm each against the repository’s deploy.yml.
 
 ### Step 3 — Google Cloud
 
 1. Go to console.cloud.google.com and open the slide-timing project.
 1. Go to IAM & Admin → IAM and add the new administrator’s Google account with the Owner role.
 1. The new administrator should create a new service account key (IAM & Admin → Service Accounts → slide-timing-worker → Keys → Add Key). The old key should then be deleted.
-1. Update GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY in the Cloudflare dashboard for all workers that require those secrets.
+1. Update GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY wherever each Worker stores them: in the GitHub repository secrets (then re-run the deploy for staging and main) for Workers whose deploy.yml pushes them, and in the Cloudflare dashboard for any that do not.
+1. Make sure every Google Sheet and Drive folder used by the Workers (including the newsletter slides folder) is owned by, or fully accessible to, the new administrator and stays shared with the service account email.
 
 ### Step 4 — AirNow
 
@@ -162,7 +168,7 @@ If a new person takes over maintenance of this system, the following steps must 
 ### Step 5 — UptimeRobot
 
 1. Go to uptimerobot.com and create a new account for the new administrator.
-1. Recreate all 8 monitors (see Section 13.4) under the new account.
+1. Recreate all 9 monitors (see Section 14.4) under the new account.
 1. Set the alert contact to the new administrator’s department email.
 
 *Note: river-level-display has no Google Cloud dependency. calendar-display uses Nextcloud WebDAV and has no Google Cloud dependency — the new administrator only needs to update the NEXTCLOUD_URL, NEXTCLOUD_USERNAME, and NEXTCLOUD_PASSWORD secrets in the Cloudflare dashboard.*
@@ -458,7 +464,7 @@ Station displays previously had no mechanism for showing rotating safety message
 |Production URL   |<https://daily-message-display.bwehner.workers.dev/>                                                                                                                  |
 |Staging URL      |<https://daily-message-display-staging.bwehner.workers.dev/>                                                                                                          |
 |Worker File      |src/index.js                                                                                                                                                          |
-|Secrets Required |CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID (GitHub); GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY, GOOGLE_SHEET_ID, GOOGLE_DRIVE_FOLDER_ID (Cloudflare dashboard)|
+|Secrets Required |CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY, GOOGLE_SHEET_ID, GOOGLE_DRIVE_FOLDER_ID — all GitHub repository secrets; deploy.yml pushes the four GOOGLE_ values to Cloudflare on every deploy|
 
 ## 6.3 URL Parameters
 
@@ -625,7 +631,7 @@ The rendered page is unchanged. Before deployment the old and new code produced 
 
 A staging test in which nearly every request was forced to be a cache miss (using ?bg=dark) showed a legend P90 of 9.21 ms but a chart point of 12.43 ms for one time bucket, so some cache misses can still exceed 10 ms.
 
-**Status (as of October 5, 2026): resolved.** Over the first four days on main (4.89k requests, version a30e23d9) there were no Cloudflare CPU-limit emails, 0 errors, 0 “Exceeded CPU Time Limits,” and all station displays were checked and showed the calendar correctly. CPU time is about 14 times lower at P90 and about 10 times lower at P99 than before the change. A small share of requests (about 1%, mostly page-cache rebuilds) still uses about 10 ms of CPU time or more, with occasional peaks of 15–18 ms; none of these produced an error, a failed page, or a Cloudflare email during the review period. The issue is considered closed. It should be reopened only if Cloudflare sends another “Workers CPU limit exceeded” email; in that case start with Section 13.3 and the options below. The reason the notice first arrived on October 1, when the code had not changed in about a month, was not determined. Possible causes, none verified, are a change in the ICS file (size, event count, or timestamp format), a change in how many requests were cache misses, or a change on Cloudflare's side in notification or measurement.
+**Status (as of October 5, 2026): resolved.** Over the first four days on main (4.89k requests, version a30e23d9) there were no Cloudflare CPU-limit emails, 0 errors, 0 “Exceeded CPU Time Limits,” and all station displays were checked and showed the calendar correctly. CPU time is about 14 times lower at P90 and about 10 times lower at P99 than before the change. A small share of requests (about 1%, mostly page-cache rebuilds) still uses about 10 ms of CPU time or more, with occasional peaks of 15–18 ms; none of these produced an error, a failed page, or a Cloudflare email during the review period. The issue is considered closed. It should be reopened only if Cloudflare sends another “Workers CPU limit exceeded” email; in that case start with Section 14.3 and the options below. The reason the notice first arrived on October 1, when the code had not changed in about a month, was not determined. Possible causes, none verified, are a change in the ICS file (size, event count, or timestamp format), a change in how many requests were cache misses, or a change on Cloudflare's side in notification or measurement.
 
 **If the CPU-limit email returns (options not implemented or tested in production).** Local profiling of the current code (Node, not Cloudflare's runtime, so indicative only) showed the remaining cost is mostly in the ICS parser: stepping through every line of the full 30-day file was the largest single cost, followed by timezone conversion. Options, most to least promising: (1) locate each event's block in the raw text and check its start date before splitting and unfolding the whole file, so skipped events cost almost nothing; (2) parse an event's end time (DTEND) only for events that start today, since it is needed only to hide events already finished today — this would remove only a small share of the remaining cost. In a local test, the first renders in a freshly started process were several times slower than later ones, which is consistent with the higher peaks seen after quiet periods (an inference, not verified on Cloudflare); this means the total work done per cache miss matters more than how fast the code runs once warm.
 
@@ -989,21 +995,151 @@ If the AirNow API key needs to be rotated (e.g., if it was ever exposed in a scr
 
 NWS_USER_AGENT is set as a plain [vars] entry in wrangler.toml and identifies the Worker to the NWS API as required by NWS terms of service.
 
-# 11. Shared Utilities
+# 11. Project: Newsletter Slides Display
 
-## 11.1 Overview
+## 11.1 Purpose & Problem Solved
 
-The ffd-station-display-utils repository contains shared design tokens, helper functions, and utility modules used by all 8 Worker projects. All Workers sync from this repository automatically via a GitHub Actions pipeline whenever the shared utilities are updated.
+Pieces of the department newsletter are static images that are only relevant for a limited time. The Slide Timing Proxy shows a fixed Google Slides presentation and cannot remove a slide after a date, and the Daily Message Display rotates by day, so neither fits content that expires. The Newsletter Slides Display Worker shows zero, one, or several slide images from a dedicated Google Drive folder, starts each one on its start date, takes it down automatically after its end date, and rotates between the slides that are active through the day. When no slides are active it shows a “no current slides” screen, optionally with a QR code that links to the full newsletter. Nothing in the code or a spreadsheet has to be edited to add or retire a slide: the file name carries the dates.
 
-## 11.2 Repository
+## 11.2 Repository & Deployment
+
+|**Item**         |**Value**                                                                                                                                                                                                     |
+|-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|GitHub Repository|github.com/wehnerb/newsletter-slides-display (public; default branch: staging)                                                                                                                              |
+|Production URL   |<https://newsletter-slides-display.bwehner.workers.dev/>                                                                                                                                                      |
+|Staging URL      |<https://newsletter-slides-display-staging.bwehner.workers.dev/>                                                                                                                                              |
+|Health Check     |<https://newsletter-slides-display.bwehner.workers.dev/healthz>                                                                                                                                               |
+|Worker File      |src/index.js                                                                                                                                                                                                  |
+|Google Drive Folder|“Fire Station Display - Newsletter Slides” — a folder used only by this Worker, shared with the service account email (Viewer). Staff who add slides need Editor access.                                  |
+|Secrets Required |CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY, GOOGLE_DRIVE_FOLDER_ID — all GitHub repository secrets. The three GOOGLE_ values are pushed to Cloudflare on every deploy by deploy.yml.|
+
+Repository layout: .github/workflows/deploy.yml, .github/workflows/sync-utils.yml, src/index.js, src/shared/ (copied automatically from ffd-station-display-utils — never edit it by hand), README.md, wrangler.toml.
+
+## 11.3 URL Parameters
+
+The ?layout= parameter accepts: full (1920x1075), wide (1735x720, default), split (852x720), tri (558x720). The ?bg=dark parameter gives a solid dark background for browser testing. The Worker serves three paths: / (the display page), /image/{fileId} (streams an image from Drive) and /healthz (health check). Any other path returns a 404 and only GET and HEAD requests are accepted.
+
+## 11.4 How It Works
+
+1. The Worker authenticates with Google using the shared service account (read-only Drive access) and lists the files directly inside the slide folder. Subfolders are ignored.
+1. Files that are not JPG, PNG, GIF, or WebP images are ignored without comment (this is why a text file of instructions can safely live in the folder). Images with more than 16 million pixels are skipped.
+1. Each remaining file name is checked against the naming convention in Section 11.6. A file named qr-code with an image extension is reserved for the QR code and is never treated as a slide. An image whose name breaks the convention is skipped and its name is written to the Worker logs.
+1. A slide is active if today’s date in Central time falls within its start and end dates.
+1. The slide whose turn it is (Section 11.5) is chosen and a self-contained HTML page is returned that shows it, scaled to the layout. The image itself is served through the streaming route /image/{fileId}, which fetches it from Drive server-side and streams the bytes to the display browser with no base64 encoding, keeping CPU usage low and avoiding Cloudflare’s 10 ms CPU limit.
+1. The page reloads itself at the next slot change, and always just after midnight Central, so slides start and expire on time.
+
+The Worker does no server-side caching: every page load reads the folder fresh, so a new file is picked up on the next load.
+
+## 11.5 Rotation Logic
+
+Active slides take turns, one per time slot. Slots are counted from midnight Central time: slot number = floor(minutes since midnight ÷ ROTATION_MINUTES), and the slide shown is the active slide at position (slot number mod number of active slides) in the list. The list is ordered by start date, then by file name; slides with no start date (the until_ and always_ patterns) come before dated ones.
+
+Because the slide shown depends only on the clock, it does not matter when or how often a display loads the page, so SmartHub preload timing has no effect. All dates and times use America/Chicago time and follow Daylight Saving Time.
+
+As deployed in November 2026, ROTATION_MINUTES is 15, and each station’s display cycle (3–5 minutes depending on the station) shows this screen for about 15 seconds. A given slide therefore stays up across several cycles before the next slide takes its turn. Keep ROTATION_MINUTES comfortably longer than a full display cycle so no slide can be skipped.
+
+If slides are added or expire during the day, the list changes and the rotation order shifts; this is harmless.
+
+## 11.6 File Naming Convention
+
+The file name tells the Worker when to show the slide. Dates are always YYYY-MM-DD. Both dates are included in the range, and a slide expires at midnight Central time at the end of its end date. The words to, until, and always are not case-sensitive.
+
+|**Pattern**      |**Example**                                |**Shown**                                  |
+|-----------------|-------------------------------------------|-------------------------------------------|
+|`START_to_END_name`|`2026-11-18_to_2026-11-25_flu-clinic.jpg`|From the start date through the end date   |
+|`until_END_name` |`until_2026-11-25_flu-clinic.jpg`          |Immediately, through the end date          |
+|`always_name`    |`always_station-hours.jpg`                 |Until the file is removed                  |
+
+An image is never shown if its name matches none of the patterns, if a date is not a real calendar date (for example 2026-02-30), or if the end date is before the start date. The reserved QR code name is described in Section 11.7.
+
+## 11.7 QR Code and the No-Slides Screen
+
+When there are no active slides, the Worker shows a “no current slides” screen: a title and message, and — if a QR code image is present — the QR code with a short caption underneath. The QR code is simply an image named qr-code with an image extension (for example qr-code.png) stored in the same Drive folder as the slides. It is never shown as a slide. PNG is recommended, at least 600 x 600 pixels, with a plain white border so it scans reliably; SVG is not supported. To change where the QR code leads, replace the file in the folder. If more than one qr-code file exists, the first by file name is used and a warning is logged.
+
+The title, message, and caption wording are constants near the top of src/index.js (Section 11.10). The same title and message appear whether or not a QR code is present; only the QR code and its caption are added. The caption and QR code are not part of the slide rotation.
+
+The same screen is shown if Google Drive cannot be read (without a QR code, because the folder listing is unavailable).
+
+## 11.8 Image Requirements
+
+- **Dimensions:** any width and height works. The image is scaled to fit the layout and centered, never cropped or stretched. If its shape differs from the layout’s, empty bars appear at the sides or at the top and bottom. For the best fit with no empty space on the wide layout, use 1735 x 720 pixels.
+- **Pixel limit:** images with more than 16,000,000 pixels in total (for example, larger than 4000 x 4000) are skipped, to protect the display hardware from decoding enormous images. Drive reports an image’s dimensions shortly after upload; an image without reported dimensions is allowed.
+- **File size (storage):** under 2 MB is recommended. The Worker refuses files over 5 MB.
+- **Types:** JPG, PNG, GIF, and WebP. SVG is deliberately not allowed.
+
+## 11.9 Content Management
+
+**Adding a slide:** name the image using one of the patterns in Section 11.6 and drop it into the Drive folder. No other step is required.
+
+**Removing a slide:** slides come down automatically after their end date. To remove one sooner, move it into any subfolder or delete it. Expired files may stay in the folder, but clearing them out occasionally keeps the folder tidy (the Worker reads at most 1,000 files and logs a warning beyond that).
+
+**Instructions for staff:** a text file named “HOW TO NAME SLIDE FILES.txt” lives in the folder and explains the naming convention in plain language. The Worker ignores it because it is not an image.
+
+**Access control:** anyone who can edit the folder controls what the displays show, including where the QR code leads. Keep edit access limited to the people who manage newsletter content.
+
+**Testing note:** the staging and production Workers read the same Drive folder, so a test image is visible on production displays while it is in the folder. Remove test files when testing is finished.
+
+## 11.10 Configuration
+
+Key constants near the top of src/index.js:
+
+|**Constant**                                      |**Description**                                                                                                  |
+|--------------------------------------------------|-----------------------------------------------------------------------------------------------------------------|
+|ROTATION_MINUTES                                  |Minutes each slide stays up before the next takes its turn (whole minutes, 1–1440). Currently 15.                  |
+|DEFAULT_LAYOUT_KEY                                |Layout used when no ?layout= parameter is given (default: wide).                                                 |
+|DISPLAY_TIME_ZONE                                 |Time zone for all date and time logic (America/Chicago).                                                         |
+|NO_SLIDES_TITLE, NO_SLIDES_MESSAGE                |Wording of the no-slides screen. An empty message line is omitted.                                               |
+|NO_SLIDES_QR_CAPTION                              |Line shown under the QR code. Leave empty for no caption.                                                        |
+|QR_FILE_BASENAME                                  |File name (without extension) reserved for the QR code image (default: qr-code).                                 |
+|MIN_REFRESH_SECONDS                               |Smallest page auto-refresh interval, to prevent reload loops near a slot change (default: 30).                   |
+|ERROR_RETRY_SECONDS                               |Wait before retrying after a Drive failure or a failed image (default: 60).                                      |
+|NO_SLIDES_REFRESH_SECONDS                         |How often the no-slides screen re-checks the folder for new files (default: 300).                                |
+|IMAGE_RETRY_DELAY_MS                              |Wait before the single automatic retry when an image fails to load (default: 4000).                              |
+|MAX_IMAGE_BYTES                                   |Largest image file the Worker will serve (default: 5 MB).                                                        |
+|MAX_IMAGE_PIXELS                                  |Largest image, in total pixels, that will be displayed (default: 16,000,000).                                    |
+
+Changing any constant is a normal code change: edit src/index.js on the staging branch, test, then merge to main (Section 13.2).
+
+## 11.11 Failure Behavior
+
+|**Situation**                                |**What the display shows**                                                                                                                             |
+|---------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+|Google Drive cannot be read                  |The no-slides screen (no QR code). The page reloads and tries again after ERROR_RETRY_SECONDS. The HTTP status stays 200 so the display never shows a browser error.|
+|A slide image fails to load in the browser   |One automatic retry after IMAGE_RETRY_DELAY_MS (covers the short delay Google Drive can have after an upload). If it fails again, the no-slides screen is shown and the page reloads after ERROR_RETRY_SECONDS.|
+|A required secret is missing or malformed    |A CONFIGURATION ERROR screen that names the problem (never a secret value).                                                                           |
+|A file name breaks the convention            |The file is not shown. Its name and the reason are written to the Worker logs.                                                                         |
+
+## 11.12 Security Notes
+
+- No secret, key, token, or folder ID is written to a page or a log.
+- Drive access is read-only (drive.readonly scope) through the shared service account.
+- The /image/{fileId} route serves a file only if it is in the configured folder, not in the trash, an allowed image type, under the byte and pixel limits, and either an active slide or the QR code image. Any other Drive file is refused even if its ID is known. Refusals use generic responses that reveal nothing about the file.
+- The Worker does not set X-Frame-Options (the displays load it in an iframe) and accepts only GET and HEAD requests.
+- Because images are streamed through the Worker, the Drive folder can stay private and does not need public sharing.
+- The folder remains the control point: restrict who has Editor access (Section 11.9).
+
+## 11.13 Setting Up or Rebuilding This Worker
+
+The full process, including the order in which files must be uploaded, is in Section 13.5. Worker-specific items: create the dedicated Drive folder and share it with the service account email, create the five GitHub secrets listed in Section 11.2, and put the three GOOGLE_ values in GitHub (deploy.yml pushes them to Cloudflare; see Section 2.3).
+
+# 12. Shared Utilities
+
+## 12.1 Overview
+
+The ffd-station-display-utils repository contains shared design tokens, helper functions, and utility modules used by all 9 Worker projects. All Workers sync from this repository automatically via a GitHub Actions pipeline whenever the shared utilities are updated (Section 12.4). In each Worker repository the shared files live in src/shared/, which the pipeline overwrites — never edit files there by hand.
+
+## 12.2 Repository
 
 |**Item**         |**Value**                                   |
 |-----------------|--------------------------------------------|
 |GitHub Repository|github.com/wehnerb/ffd-station-display-utils|
 |Worker File      |N/A — this is a shared library, not a Worker|
-|Branches         |main only (no staging branch needed)        |
+|Branches         |staging and main. The sync pipeline is triggered from and reads staging; changes are promoted to main afterward.|
+|Visibility       |Public. Each Worker’s sync-utils.yml reads this repository using that Worker repository’s built-in token, which can only read public repositories other than its own.|
+|Contents         |utils/ folder (the shared modules) and a VERSION file at the repository root; .github/workflows/notify-workers.yml|
+|Secret           |WORKER_REPO_DISPATCH_TOKEN (Section 2.3)|
 
-## 11.3 Shared Modules
+## 12.3 Shared Modules
 
 |**File**        |**Purpose**                                                                                                                                   |
 |----------------|----------------------------------------------------------------------------------------------------------------------------------------------|
@@ -1015,13 +1151,31 @@ The ffd-station-display-utils repository contains shared design tokens, helper f
 |google-auth.js  |getAccessToken function for Google service account JWT authentication                                                                         |
 |rotation.js     |getTodayString, getDaysElapsed, getBlockIndex, getSecondsUntilNextRotation, formatHireDate helpers for 3-day rotation and hire date formatting|
 
-## 11.4 Auto-Sync Pipeline
+## 12.4 Auto-Sync Pipeline
 
-When a change is merged to main in ffd-station-display-utils, a GitHub Actions workflow (notify-workers.yml) automatically opens a pull request in each of the 8 Worker repositories to pull in the updated shared files. These PRs target the staging branch of each Worker. Each Worker’s sync-utils.yml workflow merges the PR to staging and then auto-merges staging to main.
+Shared files flow from this repository to every Worker repository through two workflows.
 
-To trigger the pipeline: update VERSION in ffd-station-display-utils, commit to main, and the pipeline runs automatically.
+**1. notify-workers.yml (in ffd-station-display-utils).** It runs when the VERSION file changes on the staging branch, or when started by hand from the Actions tab. It sends a repository_dispatch event (type utils-updated) to each of the 9 Worker repositories listed in its REPOS list, using the WORKER_REPO_DISPATCH_TOKEN secret. A repository that is missing from the list, misspelled, or outside the token’s repository access is not notified (a misspelled name makes the job fail with a 404 on that entry).
 
-## 11.5 Design Token Summary
+**2. sync-utils.yml (in each Worker repository).** It runs when it receives that event, or when started by hand. It:
+
+1. Checks out the Worker’s staging branch and the utils repository’s staging branch.
+1. Replaces src/shared/ with the utils/ folder plus the VERSION file.
+1. If nothing changed, stops with “Already up to date.” Otherwise it commits the change to a branch named sync-utils-v followed by the version, opens a pull request to staging, and merges it.
+1. Merges staging into main with a merge commit, then deletes the sync branch.
+
+To trigger the pipeline: update VERSION in ffd-station-display-utils on the staging branch together with the utility change. To sync a single Worker repository by hand: Actions → Sync shared utils → Run workflow in that repository.
+
+Requirements and behaviors to know:
+
+- sync-utils.yml must be on each Worker repository’s default branch (staging). The events that start it only run workflow files from the default branch.
+- Each Worker repository must allow GitHub Actions to create and approve pull requests (Settings → Actions → General). If it does not, the pull request is not created and src/shared/ is not updated.
+- The steps that open and merge the pull request are written to continue after a failure and only print a message. A green check therefore does not prove the sync worked: confirm that the sync pull request shows as merged and that src/shared/ is current.
+- The final merge into main uses a merge commit. In a brand-new repository the first run fails at that step with “refusing to merge unrelated histories,” which is harmless because staging is already updated; it goes away once staging has been merged into main with a merge commit. Squash or rebase merges between staging and main break the shared history and make this step fail on every future sync.
+- GitHub documents that actions taken with the built-in GITHUB_TOKEN do not start other workflow runs. After a sync, check the Worker repository’s Actions tab to confirm that its deploy workflow ran; if it did not, the Worker keeps running the previous code until the next push or a manual re-run of the latest deploy.
+- To add a new Worker to the pipeline, see Section 13.5.
+
+## 12.5 Design Token Summary
 
 |**Token**       |**Value**                   |**Usage**                                                |
 |----------------|----------------------------|---------------------------------------------------------|
@@ -1044,18 +1198,18 @@ To trigger the pipeline: update VERSION in ffd-station-display-utils, commit to 
 |------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 |ACCENT_COLOR is used functionally only — never as a decorative top border or purely ornamental element. Only font weights 400 and 700 are portable across the Pi font fallback chain. Do not use 300, 500, or 600.|
 
-# 12. Deployment & Maintenance Workflow
+# 13. Deployment & Maintenance Workflow
 
-## 12.1 Branch Strategy
+## 13.1 Branch Strategy
 
-Each Worker repository uses two branches. All changes must go through staging before being merged to main.
+Each Worker repository uses two branches. All changes must go through staging before being merged to main. Staging is the default branch in every Worker repository, so edits and uploads made in the GitHub web interface land on staging rather than main.
 
 |**Branch**|**Deploys To**                      |**Purpose**                                         |
 |----------|------------------------------------|----------------------------------------------------|
 |staging   |[worker]-staging.bwehner.workers.dev|Testing and validation of changes before production |
 |main      |[worker].bwehner.workers.dev        |Live production environment used by station displays|
 
-## 12.2 Making a Code Change
+## 13.2 Making a Code Change
 
 Follow these steps in order for all code changes:
 
@@ -1065,7 +1219,7 @@ Follow these steps in order for all code changes:
 1. GitHub Actions will automatically deploy the change to the staging Worker within about 30–45 seconds.
 1. Test the staging Worker URL in a browser to confirm the change works as expected.
 1. For display-dependent changes, temporarily update the endpoint URL on a single station display to the staging Worker URL. Confirm the change works correctly on actual display hardware before proceeding.
-1. Once both browser and display tests pass, merge the pull request to staging, then merge staging to main.
+1. Once both browser and display tests pass, merge the pull request to staging, then merge staging to main. Merge staging into main with a merge commit (GitHub’s “Create a merge commit”), never a squash or rebase, so the shared-utilities sync keeps working (Section 12.4).
 1. GitHub Actions will automatically deploy to the production Worker within about 30–45 seconds.
 1. Verify the production Worker URL is functioning correctly. Return any display temporarily set to staging to the production URL.
 
@@ -1076,7 +1230,7 @@ Follow these steps in order for all code changes:
 - **Production rollback:** Go to the main branch commit history, find the last known-good commit, and use GitHub’s Revert feature. This triggers a redeployment automatically.
 - **Re-sync branches after rollback:** After reverting main, merge main back into staging immediately.
 
-## 12.3 Important Deployment Notes
+## 13.3 Important Deployment Notes
 
 |**Important**                                                                                                                                                                                             |
 |----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -1086,13 +1240,45 @@ Follow these steps in order for all code changes:
 |---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 |The X-Frame-Options: SAMEORIGIN header must never be added to any of these Workers. All Workers are loaded as full-screen iframes by the display system, and this header causes the browser to block the page from rendering entirely, producing an immediate white error screen.|
 
-## 12.4 Monitoring Deployments
+## 13.4 Monitoring Deployments
 
-Every deployment is logged in the Actions tab of the GitHub repository. All 8 Workers are monitored by UptimeRobot via their /healthz endpoints. Alerts are sent by email when any Worker goes down or recovers.
+Every deployment is logged in the Actions tab of the GitHub repository. All 9 Workers are monitored by UptimeRobot via their /healthz endpoints. Alerts are sent by email when any Worker goes down or recovers.
 
-# 13. IT Support Reference
+## 13.5 Adding a New Worker to the System
 
-## 13.1 Overview for IT Staff
+This is the process used to add newsletter-slides-display (Section 11) in November 2026. It assumes the new Worker follows the same structure as the existing ones. Every upload and edit goes to the staging branch until step 12. Create folders in the GitHub web editor by typing the path (for example .github/workflows/file.yml) into the file name box; a slash creates the folder.
+
+**Required repository layout:**
+
+|**Path**                         |**Purpose**                                                                                  |
+|---------------------------------|---------------------------------------------------------------------------------------------|
+|.github/workflows/deploy.yml     |Deploys to Cloudflare: pushes to staging deploy the -staging Worker, pushes to main deploy production|
+|.github/workflows/sync-utils.yml |Pulls shared utilities from ffd-station-display-utils (Section 12.4)                         |
+|src/index.js                     |The Worker code                                                                              |
+|src/shared/                      |Shared utilities — created by the sync workflow, never edited or uploaded by hand            |
+|wrangler.toml                    |Worker name, entry point, and the [env.staging] block                                        |
+|README.md                        |Repository overview and content-management instructions                                     |
+
+**Steps:**
+
+1. Create any external resources the Worker needs (for example, a Google Drive folder) and share them with the service account email. Record any IDs the Worker needs.
+1. Create a public GitHub repository under wehnerb, initialized with a README (this creates the main branch). Create a staging branch from main, then go to Settings → Branches and make staging the default branch. The default branch matters: the sync workflow is started by events that only run workflow files on the default branch.
+1. Go to Settings → Actions → General and set the workflow permissions to match an existing Worker repository, including the option that allows GitHub Actions to create and approve pull requests. If that option is off, the sync cannot open its pull request.
+1. On the staging branch, create the .github/workflows folder and upload sync-utils.yml. Inside the file, the repository name is read from github.repository, so the same file works in any repository. (The copy in daily-message-display instead names its own repository in two places, which must be changed if that copy is reused.)
+1. Run the sync by hand: Actions → Sync shared utils → Run workflow (branch staging). Confirm src/shared/ on staging now contains VERSION plus the shared modules (currently alert-colors.js, colors.js, fetch-helpers.js, google-auth.js, html.js, layouts.js, and rotation.js), and that the sync pull request shows as merged. Do not rely on the green ticks alone (Section 12.4).
+1. Expect the last step of that first run, “Merge staging into main,” to fail with “refusing to merge unrelated histories.” It is harmless in a brand-new repository: staging is already updated and main receives everything in step 12. Optionally delete the leftover sync-utils-v* branch.
+1. Add the GitHub repository secrets: CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID, plus any Worker-specific secrets. List each Worker-specific secret in the secrets: block of deploy.yml so GitHub pushes it to Cloudflare on every deploy (Section 2.3).
+1. Upload, one file at a time to staging: src/index.js (into the existing src folder, not src/shared), wrangler.toml, README.md, and finally .github/workflows/deploy.yml. Uploading deploy.yml last means its first run starts only after everything it needs is present.
+1. Confirm the Actions run is green, the staging Worker exists in the Cloudflare dashboard with its secrets, and the staging /healthz URL reports healthy. Test the Worker thoroughly in a browser, then on one station display using the staging URL.
+1. Remove any test content (staging and production may share external resources such as the Drive folder).
+1. Add the new repository to notify-workers.yml in ffd-station-display-utils: put the entry at the end of the REPOS list with the exact spelling “wehnerb/repository-name” (a misspelled owner or name makes the notify job fail with a 404), and update the repository count in its comments. Then edit the WORKER_REPO_DISPATCH_TOKEN fine-grained token (GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens) so its repository access includes the new repository.
+1. Open a pull request from staging to main and merge it with “Create a merge commit.” Do not squash or rebase, which breaks the shared history and makes the sync’s automatic merge into main fail on every future utils update. Confirm the production deploy and the production /healthz URL.
+1. Add an UptimeRobot monitor on the production /healthz URL (5-minute interval, same alert contacts as the others) and add the production URL to the station displays following the normal rollout.
+1. Update this documentation: add the repository to Sections 2.2 and 2.3, add a project section like Section 11, update Sections 12.4, 14.4, and 14.5, and update every count of Workers.
+
+# 14. IT Support Reference
+
+## 14.1 Overview for IT Staff
 
 This system runs entirely on external cloud services and does not require any on-premises server infrastructure, VPNs, or internal network changes. The display screens require only outbound internet access to reach the Cloudflare Worker URLs. There is no software to install, no servers to patch, and no internal ports to open.
 
@@ -1102,19 +1288,19 @@ IT involvement would typically only be needed for:
 - Display hardware or operating system issues at the screen level.
 - Account access issues if the department member managing this system is unavailable.
 
-## 13.2 Network Requirements
+## 14.2 Network Requirements
 
 The display screens must have outbound internet access on port 443 (HTTPS) to the following domains:
 
-- *.workers.dev — Cloudflare Worker endpoints (all 8 Worker projects)
+- *.workers.dev — Cloudflare Worker endpoints (all 9 Worker projects)
 - docs.google.com — Google Slides embeds
 - cdnjs.cloudflare.com — Leaflet.js CSS and JavaScript for the weather display radar map
 - *.basemaps.cartocdn.com — CartoDB Dark Matter base map tiles for the radar display
 - tilecache.rainviewer.com — RainViewer radar overlay tiles
 
-Note: [www.dot.nd.gov](http://www.dot.nd.gov), usgs-nims-images.s3.amazonaws.com, and water.noaa.gov are fetched by the station-image-proxy Worker on its own network — not by the display screens directly. The display browser receives these images through the Worker’s /proxy endpoint on workers.dev. api.weather.gov, api.rainviewer.com, and [www.airnowapi.org](http://www.airnowapi.org) are similarly fetched by other Cloudflare Workers on their own network, not by the display screens directly. [www.googleapis.com](http://www.googleapis.com) is also accessed only by the Cloudflare Worker server-side (for Google Slides, Sheets, and Drive API calls). Photo and image proxy routes (/photo/ and /image/) on the daily-message-display and probationary-firefighter-display Workers resolve back to those Workers — the display browser never contacts googleapis.com directly and does not require firewall access to that domain.
+Note: [www.dot.nd.gov](http://www.dot.nd.gov), usgs-nims-images.s3.amazonaws.com, and water.noaa.gov are fetched by the station-image-proxy Worker on its own network — not by the display screens directly. The display browser receives these images through the Worker’s /proxy endpoint on workers.dev. api.weather.gov, api.rainviewer.com, and [www.airnowapi.org](http://www.airnowapi.org) are similarly fetched by other Cloudflare Workers on their own network, not by the display screens directly. [www.googleapis.com](http://www.googleapis.com) is also accessed only by the Cloudflare Worker server-side (for Google Slides, Sheets, and Drive API calls). Photo and image proxy routes (/photo/ and /image/) on the daily-message-display, probationary-firefighter-display, and newsletter-slides-display Workers resolve back to those Workers — the display browser never contacts googleapis.com directly and does not require firewall access to that domain.
 
-## 13.3 Troubleshooting
+## 14.3 Troubleshooting
 
 |**Symptom**                                      |**Likely Cause**                                                                        |**Resolution**                                                                                                                                                                                                                                                                                                                  |
 |-------------------------------------------------|----------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -1134,10 +1320,16 @@ Note: [www.dot.nd.gov](http://www.dot.nd.gov), usgs-nims-images.s3.amazonaws.com
 |Weather radar map is white or partially loaded   |Leaflet map initialization timing issue on Pi hardware                                  |This is a known intermittent issue. The display refreshes automatically and typically self-resolves on the next cycle.                                                                                                                                                                                                          |
 |Weather display shows no AQI badge               |AIRNOW_API_KEY missing or AirNow API unavailable                                        |Check that AIRNOW_API_KEY is set in the Cloudflare dashboard for weather-display. The badge is silently omitted when unavailable.                                                                                                                                                                                               |
 |UptimeRobot shows a Worker as down               |Worker returning non-200 status or timing out                                           |Load the /healthz URL directly in a browser. If it returns “status: healthy”, the alert may have been a transient blip. If it returns “status: degraded”, check the detail lines — for calendar-display, “nextcloud: authentication failed” points directly to Section 7.11. Otherwise check Cloudflare Worker logs for details.|
+|Newsletter slide is not appearing               |The file name breaks the naming convention, a date is not a real date or the date range does not include today, the image is over the pixel limit, or the file is inside a subfolder|Check the name against the table in Section 11.6. Open the Worker’s logs in Cloudflare and look for an “Ignored file” line that names the file and the reason. Images over 16 million pixels are skipped, and files in subfolders are ignored on purpose.|
+|Newsletter display shows the no-slides screen although slides exist|Google Drive could not be read (the page retries every 60 seconds), or every slide is outside its dates|Verify the Drive folder is shared with the service account email, GOOGLE_DRIVE_FOLDER_ID is correct in the GitHub secrets, and the latest deploy ran after any secret change (Section 2.3). Compare each slide’s dates with today’s date in Central time.|
+|Newsletter display shows CONFIGURATION ERROR    |A required secret is missing or the folder ID is malformed                              |The screen names the problem. Fix the GitHub repository secret, then re-run the latest deploy for the staging and main branches.|
+|QR code does not appear on the no-slides screen  |No file named qr-code with an image extension in the folder, an unsupported format such as SVG, or the file exceeds the size limits|Add a PNG named qr-code.png (at least 600 x 600 pixels, white border) to the Drive folder (Section 11.7).|
+|Shared utils sync fails at “Merge staging into main” with “refusing to merge unrelated histories”|First sync in a new Worker repository, or staging was merged into main with a squash or rebase|Expected on the first sync of a new repository: staging is already updated. Merge staging into main with a merge commit and later syncs work. Delete the leftover sync-utils-v branch (Section 12.4).|
+|“Notify worker repos” job fails with a 404 on one repository|The repository name is misspelled in notify-workers.yml, or the WORKER_REPO_DISPATCH_TOKEN token cannot access that repository|Check the spelling of every entry in the REPOS list, then check the token’s repository access and expiration date (Section 2.3).|
 
-## 13.4 Uptime Monitoring
+## 14.4 Uptime Monitoring
 
-All 8 Workers are monitored via UptimeRobot at 5-minute intervals. Each monitor checks the Worker’s /healthz endpoint and alerts by email when the Worker is down or recovers.
+All 9 Workers are monitored via UptimeRobot at 5-minute intervals. Each monitor checks the Worker’s /healthz endpoint and alerts by email when the Worker is down or recovers.
 
 |**Monitor Name**                    |**URL**                                                               |
 |------------------------------------|----------------------------------------------------------------------|
@@ -1149,22 +1341,23 @@ All 8 Workers are monitored via UptimeRobot at 5-minute intervals. Each monitor 
 |FFD Department News Display         |<https://department-news-display.bwehner.workers.dev/healthz>         |
 |FFD Probationary Firefighter Display|<https://probationary-firefighter-display.bwehner.workers.dev/healthz>|
 |FFD Weather Display                 |<https://weather-display.bwehner.workers.dev/healthz>                 |
+|FFD Newsletter Slides Display       |<https://newsletter-slides-display.bwehner.workers.dev/healthz>       |
 
-## 13.5 Service Limits & Monitoring
+## 14.5 Service Limits & Monitoring
 
 |**Service**                        |**Free Tier Limit**               |**Est. Daily Usage (8 stations)**                                          |**Where to Check**                                    |
 |-----------------------------------|----------------------------------|---------------------------------------------------------------------------|------------------------------------------------------|
-|Cloudflare Workers (combined total)|100,000 req/day                   |~30,000–70,000 req/day (varies by layout and cache hit rate)               |dash.cloudflare.com → Workers & Pages → Overview      |
-|Cloudflare Workers CPU time (per request)|10 ms per request (Free plan)|calendar-display after the Oct 2026 optimization (Oct 1–5): P99 9.98 ms, P999 12.5 ms (was P99 ~106 ms); typical request ~1 ms. Other Workers were 1–9 ms (P90) on Oct 1, 2026, several close to the limit|dash.cloudflare.com → Workers & Pages → (Worker) → Metrics → CPU Time|
+|Cloudflare Workers (combined total)|100,000 req/day                   |~35,000–78,000 req/day (varies by layout and cache hit rate; includes an estimated 5,000–8,000 for newsletter-slides-display, which has not yet been measured)               |dash.cloudflare.com → Workers & Pages → Overview      |
+|Cloudflare Workers CPU time (per request)|10 ms per request (Free plan)|calendar-display after the Oct 2026 optimization (Oct 1–5): P99 9.98 ms, P999 12.5 ms (was P99 ~106 ms); typical request ~1 ms. Other Workers were 1–9 ms (P90) on Oct 1, 2026, several close to the limit. newsletter-slides-display (added November 2026) has not yet been measured — check its Metrics → CPU Time|dash.cloudflare.com → Workers & Pages → (Worker) → Metrics → CPU Time|
 |Google Slides API                  |300 req/minute                    |At most 1 request per hour per cache version                               |console.cloud.google.com → APIs & Services → Dashboard|
 |Google Sheets API                  |300 req/minute per project        |Low — edge-cached to limit calls                                           |console.cloud.google.com → APIs & Services → Dashboard|
-|Google Drive API                   |1,000 req/100 seconds             |Low — one listing call per Worker request, results edge-cached             |console.cloud.google.com → APIs & Services → Dashboard|
+|Google Drive API                   |1,000 req/100 seconds             |Low — one listing call per Worker request, results edge-cached. newsletter-slides-display is not cached: one listing call per page load plus two Drive calls per image served             |console.cloud.google.com → APIs & Services → Dashboard|
 |NOAA NWPS / NWS APIs               |No documented hard limit          |Low — all responses edge-cached for 15–60 minutes                          |Monitor via displays on screens                       |
 |AirNow API                         |500 req/hour                      |~8–16 req/hour across 8 stations — well within limit                       |docs.airnowapi.org → My Account                       |
 |RainViewer API                     |No documented hard limit          |Low — metadata fetched per Worker request; tiles fetched by display browser|Monitor via weather display on screens                |
-|UptimeRobot                        |50 monitors, 5-min interval (free)|8 monitors active — well within limit                                      |uptimerobot.com → Dashboard                           |
+|UptimeRobot                        |50 monitors, 5-min interval (free)|9 monitors active — well within limit                                      |uptimerobot.com → Dashboard                           |
 
-## 13.6 Contact & Escalation
+## 14.6 Contact & Escalation
 
 For issues with application code, configuration, or Cloudflare/GitHub accounts, contact Brandon Wehner.
 
@@ -1172,9 +1365,9 @@ For issues with display screen hardware or operating system, contact the shift p
 
 For local network connectivity issues preventing displays from reaching external URLs, contact the City of Fargo Information Services (IS) Department.
 
-# 14. Planned Enhancements
+# 15. Planned Enhancements
 
-## 14.1 Incident & Performance Data (First Due)
+## 15.1 Incident & Performance Data (First Due)
 
 |**Enhancement**                   |**Description**                                                                                              |**Priority**|**Status**         |
 |----------------------------------|-------------------------------------------------------------------------------------------------------------|------------|-------------------|
@@ -1185,7 +1378,7 @@ For local network connectivity issues preventing displays from reaching external
 |Year-over-Year Call Volume        |Comparison of call volume across years to identify growth trends.                                            |Medium      |Under Consideration|
 |Geographic Call Clustering        |Heat map or cluster map showing where calls are concentrated within the response area.                       |Low         |Under Consideration|
 
-## 14.2 Display Content Enhancements
+## 15.2 Display Content Enhancements
 
 |**Enhancement**                          |**Description**                                                                                                                                                                       |**Priority**|**Status**         |
 |-----------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|-------------------|
@@ -1195,6 +1388,7 @@ For local network connectivity issues preventing displays from reaching external
 |Probationary Firefighter Display         |Rotating spotlight with photo and bio sourced from Google Sheets and Drive. Cycles through all active new hires on a 3-day rotation. Drops off automatically after 365 days from hire.|Medium      |Complete           |
 |Department News Display                  |Card-based department-wide and station-specific news feed sourced from Google Sheets. Supports recurring items, new item highlighting, and auto-scrolling for overflow content.       |Medium      |Complete           |
 |Weather Display                          |Full weather display with animated RainViewer radar, NWS current conditions, 3-day forecast, AirNow AQI, and active/future alert banners.                                             |Medium      |Complete           |
+|Newsletter Slides Display                |Expiring newsletter slide images from a dedicated Drive folder. File names carry start and end dates; active slides rotate through the day; a no-slides screen with an optional QR code appears when none are active.|Medium      |Complete           |
 |Birthday & Department Anniversary Display|Display birthdays and department hire anniversaries for the current week or month.                                                                                                    |Low         |Under Consideration|
 |Retirement Countdown                     |Countdown display for upcoming retirements (with member permission).                                                                                                                  |Low         |Under Consideration|
 |Additional River Gauges                  |Add additional NOAA gauge locations to the river-level-display GAUGES registry (e.g., Moorhead, MN — gauge MHDN8).                                                                    |Low         |Under Consideration|
