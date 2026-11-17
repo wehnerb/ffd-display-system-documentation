@@ -28,4 +28,4 @@ The documentation covers system architecture, all eight Worker projects, the sha
 
 Brandon Wehner — Fargo Fire Department
 
-For questions about this system, see **Section 13.6** of the documentation.
+For questions about this system, see **Section 14.6** of the documentation.
