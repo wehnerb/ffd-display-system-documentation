@@ -22,6 +22,7 @@ The documentation covers system architecture, all eight Worker projects, the sha
 | Probationary Firefighter Display | Rotating new hire spotlight with bio and photo from Google Sheets/Drive | [probationary-firefighter-display](https://github.com/wehnerb/probationary-firefighter-display) |
 | Department News Display | Department-wide and station-specific news cards from Google Sheets | [department-news-display](https://github.com/wehnerb/department-news-display) |
 | Weather Display | Full weather display with animated radar, NWS conditions, and AirNow AQI | [weather-display](https://github.com/wehnerb/weather-display) |
+| Newsletter Slides Display | Displays slides from City newsletter | [newsletter-slides-display](https://github.com/wehnerb/newsletter-slides-display) |
 | Shared Utilities | Design tokens, helpers, and utilities shared across all Workers | [ffd-station-display-utils](https://github.com/wehnerb/ffd-station-display-utils) |
 
 ## 👤 Maintained By
