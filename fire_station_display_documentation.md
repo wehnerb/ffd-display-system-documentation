@@ -2,7 +2,7 @@
 
 *Technical Reference Guide for Department Staff, Administrators, and IT Support*
 
-Last Updated: November 17, 2026
+Last Updated: November 19, 2026
 
 Maintained by: Brandon Wehner
 
@@ -110,10 +110,10 @@ Each GitHub repository stores secrets that are injected into the Cloudflare Work
 |----------------------------|--------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 |CLOUDFLARE_API_TOKEN        |All                                                                             |Cloudflare API token with Workers edit permissions                                                                                                                                                        |
 |CLOUDFLARE_ACCOUNT_ID       |All                                                                             |Cloudflare account ID (found on any zone page in dashboard)                                                                                                                                               |
-|GOOGLE_SERVICE_ACCOUNT_EMAIL|slide-timing-proxy, daily-message-display, newsletter-slides-display (GitHub)|Service account email from Google Cloud JSON key file. For daily-message-display and newsletter-slides-display, deploy.yml pushes it from the GitHub secret to Cloudflare on every deploy. Also required for probationary-firefighter-display and department-news-display — see the Important box below for where those store it.|
-|GOOGLE_PRIVATE_KEY          |slide-timing-proxy, daily-message-display, newsletter-slides-display (GitHub)|Private key from Google Cloud JSON key file (include \n characters). For daily-message-display and newsletter-slides-display, deploy.yml pushes it from the GitHub secret to Cloudflare on every deploy. Also required for probationary-firefighter-display and department-news-display — see the Important box below.|
-|GOOGLE_SHEET_ID             |daily-message-display, department-news-display, probationary-firefighter-display|The ID of the relevant Google Sheet. Found in the Sheet URL between /d/ and /edit. For daily-message-display it is a GitHub secret that deploy.yml pushes to Cloudflare on every deploy; for the other two Workers see the Important box below.|
-|GOOGLE_DRIVE_FOLDER_ID      |daily-message-display, probationary-firefighter-display, newsletter-slides-display|The ID of the Google Drive folder containing the images; each Worker uses its own folder. Found in the folder URL after /folders/. For daily-message-display and newsletter-slides-display it is a GitHub secret that deploy.yml pushes to Cloudflare on every deploy; for probationary-firefighter-display see the Important box below.|
+|GOOGLE_SERVICE_ACCOUNT_EMAIL|slide-timing-proxy, daily-message-display, newsletter-slides-display (GitHub)|Service account email from Google Cloud JSON key file. For daily-message-display and newsletter-slides-display, deploy.yml pushes it from the GitHub secret to Cloudflare on every deploy. Also required for probationary-firefighter-display and department-news-display, where it is set manually in the Cloudflare dashboard.|
+|GOOGLE_PRIVATE_KEY          |slide-timing-proxy, daily-message-display, newsletter-slides-display (GitHub)|Private key from Google Cloud JSON key file (include \n characters). For daily-message-display and newsletter-slides-display, deploy.yml pushes it from the GitHub secret to Cloudflare on every deploy. Also required for probationary-firefighter-display and department-news-display, where it is set manually in the Cloudflare dashboard.|
+|GOOGLE_SHEET_ID             |daily-message-display, department-news-display, probationary-firefighter-display|The ID of the relevant Google Sheet. Found in the Sheet URL between /d/ and /edit. For daily-message-display it is a GitHub secret that deploy.yml pushes to Cloudflare on every deploy; for the other two Workers it is set manually in the Cloudflare dashboard.|
+|GOOGLE_DRIVE_FOLDER_ID      |daily-message-display, probationary-firefighter-display, newsletter-slides-display|The ID of the Google Drive folder containing the images; each Worker uses its own folder. Found in the folder URL after /folders/. For daily-message-display and newsletter-slides-display it is a GitHub secret that deploy.yml pushes to Cloudflare on every deploy; for probationary-firefighter-display it is set manually in the Cloudflare dashboard.|
 |PRESENTATION_ID             |slide-timing-proxy only                                                         |Google Slides presentation ID — the alphanumeric string between /d/ and /edit in the presentation URL.                                                                                                    |
 |PUBLISHED_ID                |slide-timing-proxy only                                                         |Google Slides published embed ID — the long string between /d/e/ and /pubembed in the File → Share → Publish to web embed URL.                                                                            |
 |NEXTCLOUD_URL               |calendar-display only                                                           |Full WebDAV URL to the ICS file on Nextcloud. Format: <https://fileshare.fargond.gov/remote.php/dav/files/USERNAME/FFD%20Calendar%20Export/FFD%20Calendar%20Calendar.ics>                                 |
@@ -127,11 +127,11 @@ Each GitHub repository stores secrets that are injected into the Cloudflare Work
 |CLOUDFLARE_API_TOKEN: Log in to dash.cloudflare.com, go to My Profile → API Tokens → Create Token. Use the “Edit Cloudflare Workers” template. Copy the generated token — it is only shown once.                                                                                                                                                                                                                                                                                                                                                                   |
 |CLOUDFLARE_ACCOUNT_ID: Log in to dash.cloudflare.com and go to Workers & Pages → Overview. The Account ID is displayed in the right sidebar.                                                                                                                                                                                                                                                                                                                                                                                                                       |
 |GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY: Log in to console.cloud.google.com and open the slide-timing project. Go to IAM & Admin → Service Accounts → slide-timing-worker → Keys → Add Key → Create new key (JSON). Download the JSON file. The client_email field is your GOOGLE_SERVICE_ACCOUNT_EMAIL and the private_key field is your GOOGLE_PRIVATE_KEY. Store the JSON file securely and delete it after copying the values into the GitHub repository secrets (and into the Cloudflare dashboard for any Worker whose deploy.yml does not push them).                                                                                       |
-|Note: river-level-display does not require any Google credentials. daily-message-display, probationary-firefighter-display, department-news-display, and newsletter-slides-display all use the same service account as slide-timing-proxy. For daily-message-display and newsletter-slides-display, set the values as GitHub repository secrets (deploy.yml pushes them to Cloudflare on every deploy). For the others, follow the Important box below: check deploy.yml, and set any secret it does not push in the Cloudflare dashboard (Workers & Pages → [Worker Name] → Settings → Variables and Secrets). calendar-display uses Nextcloud WebDAV and does not require Google credentials. weather-display requires AIRNOW_API_KEY set in the Cloudflare dashboard.|
+|Note: river-level-display does not require any Google credentials. daily-message-display, probationary-firefighter-display, department-news-display, and newsletter-slides-display all use the same service account as slide-timing-proxy. For daily-message-display and newsletter-slides-display, set the values as GitHub repository secrets (deploy.yml pushes them to Cloudflare on every deploy). For probationary-firefighter-display and department-news-display, set the values in the Cloudflare dashboard (Workers & Pages → [Worker Name] → Settings → Variables and Secrets), for both the production Worker and its -staging counterpart. calendar-display uses Nextcloud WebDAV and does not require Google credentials. weather-display requires AIRNOW_API_KEY set in the Cloudflare dashboard.|
 
 |**Important — Where Worker Secrets Are Stored**|
 |----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|How a Worker receives a secret depends on that repository’s .github/workflows/deploy.yml. A secret named in the secrets: list of deploy.yml is a GitHub repository secret that GitHub Actions pushes to the Worker in Cloudflare on every deploy. For those secrets GitHub is the source of truth: to change a value, update the GitHub secret and then re-run the latest deploy for both the staging and main branches. A change made only in the Cloudflare dashboard is overwritten by the next deploy. A secret that deploy.yml does not name (for example AIRNOW_API_KEY) must be set manually in the Cloudflare dashboard under Workers & Pages → [Worker Name] → Settings → Variables and Secrets, separately for the production Worker and its -staging counterpart. Confirmed in deploy.yml: daily-message-display and newsletter-slides-display push their GOOGLE_ secrets from GitHub. For every other Worker, open its deploy.yml to see which secrets it pushes.|
+|How a Worker receives a secret depends on that repository’s .github/workflows/deploy.yml. A secret named in the secrets: list of deploy.yml is a GitHub repository secret that GitHub Actions pushes to the Worker in Cloudflare on every deploy. For those secrets GitHub is the source of truth: to change a value, update the GitHub secret and then re-run the latest deploy for both the staging and main branches. A change made only in the Cloudflare dashboard is overwritten by the next deploy. A secret that deploy.yml does not name (for example AIRNOW_API_KEY) must be set manually in the Cloudflare dashboard under Workers & Pages → [Worker Name] → Settings → Variables and Secrets, separately for the production Worker and its -staging counterpart. In practice: daily-message-display and newsletter-slides-display push their GOOGLE_ secrets from GitHub on every deploy, while the secrets of probationary-firefighter-display, department-news-display, weather-display (AIRNOW_API_KEY), and calendar-display (the Nextcloud secrets) are set manually in the Cloudflare dashboard, as listed in the table above. When in doubt, open the Worker’s deploy.yml and look at its secrets: list.|
 
 ## 2.4 Transferring Ownership to a New Administrator
 
@@ -150,7 +150,7 @@ If a new person takes over maintenance of this system, the following steps must 
 1. Add the new administrator’s email and assign the Administrator role.
 1. Create a new API token for the new administrator using the Edit Cloudflare Workers template and provide it to them for their GitHub secrets.
 1. For daily-message-display and newsletter-slides-display, the Google secrets come from GitHub: after the new administrator has set the GitHub secrets, re-run the latest deploy for the staging and main branches of each repository.
-1. In the Cloudflare dashboard, set every secret that a Worker’s deploy.yml does not push (under Workers & Pages → [Worker Name] → Settings → Variables and Secrets, for each Worker and its -staging counterpart). As previously configured these were: GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY for probationary-firefighter-display and department-news-display; GOOGLE_SHEET_ID and GOOGLE_DRIVE_FOLDER_ID for probationary-firefighter-display; GOOGLE_SHEET_ID for department-news-display; AIRNOW_API_KEY for weather-display; NEXTCLOUD_URL, NEXTCLOUD_USERNAME, NEXTCLOUD_PASSWORD for calendar-display. Confirm each against the repository’s deploy.yml.
+1. In the Cloudflare dashboard, set every secret that a Worker’s deploy.yml does not push (under Workers & Pages → [Worker Name] → Settings → Variables and Secrets, for each Worker and its -staging counterpart). These are: GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY for probationary-firefighter-display and department-news-display; GOOGLE_SHEET_ID and GOOGLE_DRIVE_FOLDER_ID for probationary-firefighter-display; GOOGLE_SHEET_ID for department-news-display; AIRNOW_API_KEY for weather-display; NEXTCLOUD_URL, NEXTCLOUD_USERNAME, NEXTCLOUD_PASSWORD for calendar-display.
 
 ### Step 3 — Google Cloud
 
@@ -185,6 +185,8 @@ The /proxy endpoint streams each upstream image (ND DOT, USGS, or NOAA) through 
 
 Image freshness is preserved: the /proxy endpoint disables Cloudflare edge caching on every request and sets Cache-Control: no-store on its responses, so each refresh of the display retrieves a fresh frame from the upstream source. No image bytes are buffered, decoded, or modified by the Worker — the upstream response is streamed through unchanged.
 
+The HTML page itself is handled differently: for a given URL it is static (a few lines of CSS and the image tags), so display browsers are allowed to keep it privately for one hour (the PAGE_CACHE_SECONDS setting). This removes the page requests that would otherwise be made every display cycle. Camera and gauge images are never cached. See Section 3.10.
+
 ## 3.2 Repository & Deployment
 
 |**Item**         |**Value**                                                 |
@@ -194,6 +196,7 @@ Image freshness is preserved: the /proxy endpoint disables Cloudflare edge cachi
 |Staging URL      |<https://station-image-proxy-staging.bwehner.workers.dev/>|
 |Worker File      |src/index.js                                              |
 |Secrets Required |CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID               |
+|Page Cache       |Pages cached privately by the display browser for 1 hour (PAGE_CACHE_SECONDS); images never cached (Section 3.10)|
 
 ## 3.3 How It Works
 
@@ -203,7 +206,7 @@ The display browser then requests the image from the /proxy endpoint. The Worker
 
 This proxy-through pattern exists to avoid Chrome Private Network Access (PNA) blocking. When the HTML page is loaded from a public workers.dev origin and DNS on the local network resolves upstream domains (such as [www.dot.nd.gov](http://www.dot.nd.gov)) to private IP addresses, Chrome blocks the cross-origin image fetches as a security measure. Routing all image fetches through the Worker means the browser only ever contacts the workers.dev origin, sidestepping the issue entirely.
 
-Cache-Control: no-store is set on both the HTML response and every /proxy response. Cloudflare edge caching is also explicitly disabled on /proxy upstream fetches (cf.cacheTtl: 0), so every display refresh produces a fresh frame from the upstream source.
+Every /proxy response carries Cache-Control: no-store (and Pragma: no-cache), and Cloudflare edge caching is explicitly disabled on /proxy upstream fetches (cf.cacheTtl: 0), so every time a page is shown the browser fetches a fresh frame from the upstream source. The HTML page is different: when every image key in the URL is valid, it is sent with Cache-Control: private, max-age=3600 so the display browser can reuse it for an hour. Pages with an invalid key, and all error pages, are sent with no-store (Section 3.10).
 
 ## 3.4 URL Parameters
 
@@ -316,6 +319,40 @@ The following images are currently configured in the MAPPING object. See Section
 |i2919thAveN-south|I-29 at 19th Ave N (Facing South)|<https://www.dot.nd.gov/travel-info/cameras/I29RP66.894Fargo19thAveNSouth.jpg>        |
 |i2919thAveN-east |I-29 at 19th Ave N (Facing East) |<https://www.dot.nd.gov/travel-info/cameras/I29RP67.241Fargo19thAveNEastRampEast.jpg> |
 |i2919thAveN-west |I-29 at 19th Ave N (Facing West) |<https://www.dot.nd.gov/travel-info/cameras/I29RP67.241Fargo19thAveNEastRampWest.jpg> |
+
+## 3.10 Request Volume, Page Caching & Display Timing (November 2026)
+
+All Workers share Cloudflare’s Free-plan limit of 100,000 requests per day (Section 14.5). The Image Proxy is the largest consumer, because every image screen makes several requests each time it is shown.
+
+**What one image screen costs.** A standard image screen has 2 columns. Each column is an Image Proxy URL with 2 stacked images, so each time the screen is shown the display makes 2 page requests (one per column) plus 4 image requests, which is 6 Worker requests. Stations have between 1 and 4 such screens. With page caching, the 2 page requests are normally answered from the display browser’s cache, leaving the 4 image requests.
+
+**Page caching (added November 2026).**
+
+- The setting is PAGE_CACHE_SECONDS near the top of src/index.js. It is 3600 (1 hour).
+- Only the HTML page is cached, privately, in each display’s browser. The cache is keyed by the full URL, so every column URL is cached separately; nothing is shared between screens or stations.
+- Never cached: the /proxy images (always no-store), pages that contain an invalid image key (the “INVALID IMAGE KEY” card), error pages, and /healthz. A two-image page is cached only if both keys are valid.
+- A change to the page itself (layout, CSS, markup) reaches the displays up to one hour late, and a rollback has the same delay, because the displays’ caches cannot be cleared remotely. To make a page change visible sooner, lower PAGE_CACHE_SECONDS first, wait for the old value to expire, then make the change.
+- A browser reload (F5 or Ctrl+R) and the DevTools “Disable cache” option bypass the cache, so they will always show a real page request.
+
+**How to verify caching on a desktop browser.** Open DevTools → Network and select the **All** filter (not **Img**, which only lists the /proxy image request, which correctly shows no-store). Click the first request, named like ?img=…, and check Response Headers for Cache-Control: private, max-age=3600. Open the URL again in a new tab (or press Enter in the address bar) and the page request should show disk cache or memory cache as its source, while the image request is still a real network request. This was verified on production on November 19, 2026.
+
+**Measured effect.** On November 18, 2026 at about 07:15, four of the eight stations were pointed at the staging Worker running the cache code, while the other four stayed on production without it. Combined Image Proxy traffic fell from about 650 to about 535 invocations per 15 minutes (about 18% lower), and the split between the two Workers matched the expected 4 versus 6 requests per screen. Camera images continued to update normally at the test stations. On November 19 all stations were moved back to the production Worker and staging was merged into main. With all eight stations cached, the Image Proxy is estimated at about 445 invocations per 15 minutes (about 43,000 per day) compared with about 650 (about 62,000 per day) without caching at the current display timing. This is an estimate; the first full day of measurements after the change has not yet been recorded.
+
+**Why the images are not cached.** Camera frames are often already old at the source. Informally, depending on the camera, a frame can be up to roughly 30 minutes old when the Worker fetches it, and this is normal for these cameras. The Worker must not add any delay on top of that: the goal is for each new frame to appear on the display as soon as the source publishes it. Image caching was tried earlier and rejected because new images took too long to appear. A short image cache (for example 5 minutes) would save little, because a given screen is shown only once per display cycle and a cycle can be about that long, yet it would still make images staler.
+
+**Preferred way to reduce requests: longer screen display times.** Each image screen costs a fixed number of requests every time it is shown, so total requests are roughly proportional to 1 ÷ the length of the display cycle. On the morning of November 17, 2026 the display cycle was shortened (about 40 seconds removed per cycle on each display, adjusted display by display starting at about 10:30), and by that afternoon Image Proxy traffic had risen from about 400 to about 650 invocations per 15 minutes (about 62,000 per day). Requests from the other Workers also rose, bringing the account total to about 1,070 per 15 minutes before page caching. Lengthening the time each screen is displayed, especially the image screens, lowers requests in proportion and needs no code change. As a rule of thumb, lengthening the full cycle by 25% cuts requests by about 20%. This is the preferred first response if daily usage approaches the limit (Section 14.5).
+
+**Options considered and not adopted.**
+
+- Caching the proxied images (camera images in particular) in the browser or at Cloudflare’s edge: rejected, for the freshness reasons above.
+- Newsletter Slides Display (Section 11): its slide images could be cached by the browser, with an estimated saving of about 4,000 requests per day. Not implemented; available if needed. Its page cannot use a long cache because the page changes at every rotation slot.
+
+**Configuration (src/index.js).**
+
+|**Constant**      |**Value**|**Description**                                                                                      |
+|------------------|---------|-----------------------------------------------------------------------------------------------------|
+|STACK_GAP         |10       |Pixel gap between vertically stacked images                                                          |
+|PAGE_CACHE_SECONDS|3600     |Seconds a display browser may reuse a valid image page before asking the Worker again (Section 3.10)|
 
 # 4. Project: Slide Timing Proxy
 
@@ -1240,6 +1277,10 @@ Follow these steps in order for all code changes:
 |---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 |The X-Frame-Options: SAMEORIGIN header must never be added to any of these Workers. All Workers are loaded as full-screen iframes by the display system, and this header causes the browser to block the page from rendering entirely, producing an immediate white error screen.|
 
+|**Important — Cached Pages on the Image Proxy**|
+|-----------------------------------------------|
+|station-image-proxy sends its HTML pages with Cache-Control: private, max-age=3600 (PAGE_CACHE_SECONDS). After a change to the page itself (layout, CSS, markup) is deployed, displays that already hold a cached copy keep it for up to one hour, and a rollback has the same delay. To make a page change visible sooner, lower PAGE_CACHE_SECONDS first, wait for the old value to expire, then deploy the change. Camera images and the /proxy route are never cached, so changes to MAPPING keys or proxy behavior take effect immediately (Section 3.10).|
+
 ## 13.4 Monitoring Deployments
 
 Every deployment is logged in the Actions tab of the GitHub repository. All 9 Workers are monitored by UptimeRobot via their /healthz endpoints. Alerts are sent by email when any Worker goes down or recovers.
@@ -1326,6 +1367,8 @@ Note: [www.dot.nd.gov](http://www.dot.nd.gov), usgs-nims-images.s3.amazonaws.com
 |QR code does not appear on the no-slides screen  |No file named qr-code with an image extension in the folder, an unsupported format such as SVG, or the file exceeds the size limits|Add a PNG named qr-code.png (at least 600 x 600 pixels, white border) to the Drive folder (Section 11.7).|
 |Shared utils sync fails at “Merge staging into main” with “refusing to merge unrelated histories”|First sync in a new Worker repository, or staging was merged into main with a squash or rebase|Expected on the first sync of a new repository: staging is already updated. Merge staging into main with a merge commit and later syncs work. Delete the leftover sync-utils-v branch (Section 12.4).|
 |“Notify worker repos” job fails with a 404 on one repository|The repository name is misspelled in notify-workers.yml, or the WORKER_REPO_DISPATCH_TOKEN token cannot access that repository|Check the spelling of every entry in the REPOS list, then check the token’s repository access and expiration date (Section 2.3).|
+|Every Worker shows Error 1027, or daily requests approach 100,000|The combined requests of all Workers exceeded Cloudflare’s Free-plan limit of 100,000 per day (account-wide, resets at 00:00 UTC, which is 6 PM CST or 7 PM CDT)|Check the totals (Section 14.5). Displays recover automatically at the reset. To prevent a repeat, first lengthen the time each screen is displayed, especially image screens (Section 3.10); other options are listed there.|
+|A camera image on a display looks old|Normal for these cameras: frames can be up to roughly 30 minutes old at the source. The Image Proxy never caches images|Open /proxy?key=KEYNAME on the Worker and compare the time overlay in the image with the current time. If the overlay is old, the source has not published a newer frame yet.|
 
 ## 14.4 Uptime Monitoring
 
@@ -1347,7 +1390,7 @@ All 9 Workers are monitored via UptimeRobot at 5-minute intervals. Each monitor 
 
 |**Service**                        |**Free Tier Limit**               |**Est. Daily Usage (8 stations)**                                          |**Where to Check**                                    |
 |-----------------------------------|----------------------------------|---------------------------------------------------------------------------|------------------------------------------------------|
-|Cloudflare Workers (combined total)|100,000 req/day                   |~35,000–78,000 req/day (varies by layout and cache hit rate; includes an estimated 5,000–8,000 for newsletter-slides-display, which has not yet been measured)               |dash.cloudflare.com → Workers & Pages → Overview      |
+|Cloudflare Workers (combined total)|100,000 req/day                   |About 89,000 req/day measured for the 24 hours to Nov 19, 2026 11:15 with 4 of the 8 stations on the cached Image Proxy; estimated 82,000–88,000 once all stations are cached (Section 14.5.1)               |dash.cloudflare.com → Workers & Pages → Overview      |
 |Cloudflare Workers CPU time (per request)|10 ms per request (Free plan)|calendar-display after the Oct 2026 optimization (Oct 1–5): P99 9.98 ms, P999 12.5 ms (was P99 ~106 ms); typical request ~1 ms. Other Workers were 1–9 ms (P90) on Oct 1, 2026, several close to the limit. newsletter-slides-display (added November 2026) has not yet been measured — check its Metrics → CPU Time|dash.cloudflare.com → Workers & Pages → (Worker) → Metrics → CPU Time|
 |Google Slides API                  |300 req/minute                    |At most 1 request per hour per cache version                               |console.cloud.google.com → APIs & Services → Dashboard|
 |Google Sheets API                  |300 req/minute per project        |Low — edge-cached to limit calls                                           |console.cloud.google.com → APIs & Services → Dashboard|
@@ -1356,6 +1399,35 @@ All 9 Workers are monitored via UptimeRobot at 5-minute intervals. Each monitor 
 |AirNow API                         |500 req/hour                      |~8–16 req/hour across 8 stations — well within limit                       |docs.airnowapi.org → My Account                       |
 |RainViewer API                     |No documented hard limit          |Low — metadata fetched per Worker request; tiles fetched by display browser|Monitor via weather display on screens                |
 |UptimeRobot                        |50 monitors, 5-min interval (free)|9 monitors active — well within limit                                      |uptimerobot.com → Dashboard                           |
+
+### 14.5.1 Measured Worker Request Volume (November 2026)
+
+Cloudflare counts all Workers together against the 100,000 requests per day Free-plan limit. The count resets at 00:00 UTC (6 PM CST, 7 PM CDT), and when the limit is exceeded every Worker returns Error 1027 until the reset, so all station displays would fail and UptimeRobot would alert for all 9 monitors.
+
+Measured invocations for the 24 hours ending Nov 19, 2026 at about 11:15 (dashboard: Workers & Pages → Overview → Worker Invocations). At that time 4 of the 8 stations were on the cached Image Proxy build running on the staging Worker, so Image Proxy traffic is split between two rows:
+
+|**Worker**                       |**Invocations (24 h)**|
+|---------------------------------|----------------------|
+|station-image-proxy (production) |24,730                |
+|station-image-proxy-staging (4 test stations, cached build)|25,440|
+|newsletter-slides-display        |9,550                 |
+|department-news-display          |8,010                 |
+|probationary-firefighter-display |4,770                 |
+|slide-timing-proxy               |4,180                 |
+|river-level-display              |4,160                 |
+|daily-message-display            |4,150                 |
+|weather-display                  |2,740                 |
+|calendar-display                 |1,160                 |
+|**Total (top 10 Workers)**       |**88,890**            |
+
+Notes:
+
+- The newsletter-slides-display runs at about 100 invocations per 15 minutes (about 9,600 per day).
+- probationary-firefighter-display roughly doubled (about 45 to about 85 per 15 minutes) at about 07:30 on Nov 19, when its display switched to a new person and all stations reloaded the images and data. The 24-hour total therefore understates the rate at that time; the combined rate was about 970–1,000 per 15 minutes (about 93,000–96,000 per day) before all stations were cached. The volume of this Worker may depend on which person is being shown.
+- Before the display cycle was shortened on Nov 17, 2026, Image Proxy traffic was about 400 per 15 minutes; afterward it was about 650 (Section 3.10).
+- After page caching reaches all eight stations the combined rate is estimated at about 880–910 per 15 minutes (about 82,000–88,000 per day). This is an estimate and should be replaced by a measured value.
+
+**Daily check.** Around 5:30 PM Central, add up the Worker Invocations for the last 24 hours (the quota day ends at 6 PM). Working thresholds (rules of thumb, not Cloudflare values): under about 85,000 needs no action; 85,000–95,000 means lengthening screen display times (Section 3.10); over about 95,000 means acting the same day.
 
 ## 14.6 Contact & Escalation
 
